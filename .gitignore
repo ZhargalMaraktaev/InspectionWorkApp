@@ -1,0 +1,41 @@
+/InspectionWorkApp/bin/
+/InspectionWorkApp/obj/
+
+# Зависимости
+node_modules/
+vendor/
+*.gem
+*.egg
+*.egg-info/
+
+# Логи и базы данных
+*.log
+*.sqlite
+*.db
+
+# Файлы IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Операционные системы
+.DS_Store
+Thumbs.db
+
+# Сборки и артефакты
+build/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Конфигурационные файлы (кроме собственного .gitignore)
+*.env
+*.env.local
+*.env.production
+
+# Временные файлы
+tmp/
+temp/
