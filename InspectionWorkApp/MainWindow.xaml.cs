@@ -11,12 +11,13 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Media.Animation;
 
 namespace InspectionWorkApp
 {
     public partial class MainWindow : Window
     {
-        private readonly YourDbContext _db;
+        private readonly IDbContextFactory<YourDbContext> _dbFactory;
         private readonly OperatorService _operatorService;
         private readonly COMController _comController;
         private readonly ILogger<MainWindow> _logger;
@@ -30,10 +31,10 @@ namespace InspectionWorkApp
         private readonly AsyncLock _dbLock = new AsyncLock();
         private DateTime _lastSelectionChange = DateTime.MinValue;
         private readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(500);
-        public MainWindow(YourDbContext db, OperatorService operatorService, COMController comController, ILogger<MainWindow> logger)
+        public MainWindow(IDbContextFactory<YourDbContext> dbFactory, OperatorService operatorService, COMController comController, ILogger<MainWindow> logger)
         {
             InitializeComponent();
-            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _dbFactory = dbFactory;
             _operatorService = operatorService ?? throw new ArgumentNullException(nameof(operatorService));
             _comController = comController ?? throw new ArgumentNullException(nameof(comController));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -109,7 +110,7 @@ namespace InspectionWorkApp
                 }
 
                 bool hasUnprocessedTasks;
-                using (await _dbLock.LockAsync())
+                using (var db = _dbFactory.CreateDbContext())
                 {
  
                     var today = now.Date;
@@ -118,7 +119,7 @@ namespace InspectionWorkApp
                     var executions = new List<object>();
                     foreach (var id in assignmentIds)
                     {
-                        var execution = await _db.TOExecutions
+                        var execution = await db.TOExecutions
                             .AsNoTracking()
                             .Where(e => e.AssignmentId == id && e.DueDateTime == shiftStart)
                             .Select(e => new { e.AssignmentId, e.OperatorId, e.ExecutionTime })
@@ -195,14 +196,14 @@ namespace InspectionWorkApp
         }
         private async Task<int?> GetCurrentSectorIdAsync()
         {
-            using (await _dbLock.LockAsync().ConfigureAwait(false))
+            using (var db = _dbFactory.CreateDbContext())
             {
                 try
                 {
                     var machineName = Environment.MachineName;
                     _logger.LogInformation("Retrieving sector for computer name: {MachineName}", machineName);
 
-                    var sectorEntry = await _db.dic_PCNameSector
+                    var sectorEntry = await db.dic_PCNameSector
                         .Where(p => p.NamePC == machineName)
                         .Select(p => p.Sector)
                         .FirstOrDefaultAsync()
@@ -236,7 +237,7 @@ namespace InspectionWorkApp
 
             try
             {
-                using (await _dbLock.LockAsync())
+                using (var db = _dbFactory.CreateDbContext())
                 {
                     if (_operatorService.CurrentOperator != null)
                     {
@@ -250,7 +251,7 @@ namespace InspectionWorkApp
                         });
 
                         var cardNumber = _operatorService.CurrentOperator.CardNumber;
-                        var skudRecord = await _db.dic_SKUD
+                        var skudRecord = await db.dic_SKUD
                             .Where(s => s.IdCard == cardNumber)
                             .Select(s => new { s.TORoleId })
                             .FirstOrDefaultAsync()
@@ -313,14 +314,14 @@ namespace InspectionWorkApp
 
         private async Task LoadCombosAsync()
         {
-            using (await _dbLock.LockAsync().ConfigureAwait(false))
+            using (var db = _dbFactory.CreateDbContext())
             {
                 try
                 {
-                    var roles = await _db.TORoles.ToListAsync();
+                    var roles = await db.TORoles.ToListAsync();
                     _logger.LogInformation("Loaded {Count} roles into cmbRole", roles.Count);
 
-                    var sectors = await _db.dic_Sector.ToListAsync();
+                    var sectors = await db.dic_Sector.ToListAsync();
                     _logger.LogInformation("Loaded {Count} sectors into cmbSector", sectors.Count);
 
                     Dispatcher.Invoke(() =>
@@ -355,7 +356,7 @@ namespace InspectionWorkApp
                             {
                                 // Получаем TORoleId из dic_SKUD, если оператор авторизован
                                 var cardNumber = currentOperator.CardNumber;
-                                var skudRecord = await _db.dic_SKUD
+                                var skudRecord = await db.dic_SKUD
                                     .Where(s => s.IdCard == cardNumber)
                                     .Select(s => new { s.TORoleId })
                                     .FirstOrDefaultAsync();
@@ -426,114 +427,117 @@ namespace InspectionWorkApp
             _logger.LogInformation("LoadTasksAsync started, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
             try
             {
-                var now = DateTime.Now;
-                var today = now.Date;
-                DateTime shiftStart;
-                if (now.Hour >= 8 && now.Hour < 20)
-                {
-                    shiftStart = today.AddHours(8);
-                }
-                else if (now.Hour >= 0 && now.Hour < 8)
-                {
-                    shiftStart = today.AddDays(-1).AddHours(20);
-                }
-                else
-                {
-                    shiftStart = today.AddHours(20);
-                }
-                _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
-
-                var assignmentsQuery = _db.TOWorkAssignments
-                    .AsNoTracking()
-                    .Include(a => a.Work)
-                    .Include(a => a.WorkType)
-                    .Include(a => a.Freq)
-                    .Where(a => !a.IsCanceled);
-
-                if (_currentRoleId.HasValue)
-                {
-                    assignmentsQuery = assignmentsQuery.Where(a => a.RoleId == _currentRoleId.Value);
-                    _logger.LogInformation("Filtering tasks by RoleId: {RoleId}", _currentRoleId.Value);
-                }
-
-                if (_currentSectorId.HasValue)
-                {
-                    assignmentsQuery = assignmentsQuery.Where(a => a.SectorId == _currentSectorId.Value);
-                    _logger.LogInformation("Filtering tasks by SectorId: {SectorId}", _currentSectorId.Value);
-                }
-
-                var assignments = await assignmentsQuery.ToListAsync().ConfigureAwait(false);
-                var tasks = new List<TaskViewModel>();
-
-                foreach (var a in assignments)
-                {
-                    var freq = a.Freq;
-                    var dueDateTime = a.LastExecTime;
-                    DateTime nextDue;
-
-                    if (freq.Id == 1)
+                using (var db = _dbFactory.CreateDbContext())
+                { 
+                    var now = DateTime.Now;
+                    var today = now.Date;
+                    DateTime shiftStart;
+                    if (now.Hour >= 8 && now.Hour < 20)
                     {
-                        nextDue = shiftStart;
+                        shiftStart = today.AddHours(8);
+                    }
+                    else if (now.Hour >= 0 && now.Hour < 8)
+                    {
+                        shiftStart = today.AddDays(-1).AddHours(20);
                     }
                     else
                     {
-                        var days = freq.Id switch
-                        {
-                            2 => 7,
-                            3 => 14,
-                            4 => 30,
-                            5 => 365,
-                            _ => 7
-                        };
-                        nextDue = dueDateTime == _defaultExecutionTime
-                            ? today
-                            : (dueDateTime.HasValue ? dueDateTime.Value.AddDays(days) : today);
+                        shiftStart = today.AddHours(20);
                     }
+                    _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
 
-                    if (freq.Id == 1 || nextDue <= now)
+                    var assignmentsQuery = db.TOWorkAssignments
+                        .AsNoTracking()
+                        .Include(a => a.Work)
+                        .Include(a => a.WorkType)
+                        .Include(a => a.Freq)
+                        .Where(a => !a.IsCanceled);
+
+                    if (_currentRoleId.HasValue)
                     {
-                        var execution = await _db.TOExecutions
-                            .AsNoTracking()
-                            .Where(e => e.AssignmentId == a.Id && e.DueDateTime == shiftStart)
-                            .Select(e => new { e.Status, e.ExecutionTime })
-                            .FirstOrDefaultAsync()
-                            .ConfigureAwait(false);
-
-                        string statusName = execution?.Status switch
-                        {
-                            1 => "Выполнена",
-                            2 => "Отменена",
-                            _ => "Не выполнена"
-                        };
-
-                        tasks.Add(new TaskViewModel
-                        {
-                            Id = a.Id,
-                            WorkName = a.Work?.WorkName ?? "Unknown",
-                            WorkType = a.WorkType?.WorkType ?? "Unknown",
-                            DueDateTime = nextDue,
-                            StatusName = statusName,
-                            ExecutionTime = execution?.ExecutionTime
-                        });
-
-                        _logger.LogInformation("Task AssignmentId={AssignmentId}: WorkName={WorkName}, Status={StatusName}, DueDateTime={DueDateTime}, ExecutionTime={ExecutionTime}",
-                            a.Id, a.Work?.WorkName, statusName, nextDue, execution?.ExecutionTime);
+                        assignmentsQuery = assignmentsQuery.Where(a => a.RoleId == _currentRoleId.Value);
+                        _logger.LogInformation("Filtering tasks by RoleId: {RoleId}", _currentRoleId.Value);
                     }
+
+                    if (_currentSectorId.HasValue)
+                    {
+                        assignmentsQuery = assignmentsQuery.Where(a => a.SectorId == _currentSectorId.Value);
+                        _logger.LogInformation("Filtering tasks by SectorId: {SectorId}", _currentSectorId.Value);
+                    }
+
+                    var assignments = await assignmentsQuery.ToListAsync().ConfigureAwait(false);
+                    var tasks = new List<TaskViewModel>();
+
+                    foreach (var a in assignments)
+                    {
+                        var freq = a.Freq;
+                        var dueDateTime = a.LastExecTime;
+                        DateTime nextDue;
+
+                        if (freq.Id == 1)
+                        {
+                            nextDue = shiftStart;
+                        }
+                        else
+                        {
+                            var days = freq.Id switch
+                            {
+                                2 => 7,
+                                3 => 14,
+                                4 => 30,
+                                5 => 365,
+                                _ => 7
+                            };
+                            nextDue = dueDateTime == _defaultExecutionTime
+                                ? today
+                                : (dueDateTime.HasValue ? dueDateTime.Value.AddDays(days) : today);
+                        }
+
+                        if (freq.Id == 1 || nextDue <= now)
+                        {
+                            var execution = await db.TOExecutions
+                                .AsNoTracking()
+                                .Where(e => e.AssignmentId == a.Id && e.DueDateTime == shiftStart)
+                                .Select(e => new { e.Status, e.ExecutionTime })
+                                .FirstOrDefaultAsync()
+                                .ConfigureAwait(false);
+
+                            string statusName = execution?.Status switch
+                            {
+                                1 => "Выполнена",
+                                2 => "Отменена",
+                                _ => "Не выполнена"
+                            };
+
+                            tasks.Add(new TaskViewModel
+                            {
+                                Id = a.Id,
+                                WorkName = a.Work?.WorkName ?? "Unknown",
+                                WorkType = a.WorkType?.WorkType ?? "Unknown",
+                                DueDateTime = nextDue,
+                                StatusName = statusName,
+                                ExecutionTime = execution?.ExecutionTime
+                            });
+
+                            _logger.LogInformation("Task AssignmentId={AssignmentId}: WorkName={WorkName}, Status={StatusName}, DueDateTime={DueDateTime}, ExecutionTime={ExecutionTime}",
+                                a.Id, a.Work?.WorkName, statusName, nextDue, execution?.ExecutionTime);
+                        }
+                    }
+
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        _tasksCollection.Clear();
+                        foreach (var task in tasks)
+                        {
+                            _tasksCollection.Add(task);
+                        }
+                        if (dgTasks.ItemsSource == null)
+                        {
+                            dgTasks.ItemsSource = _tasksCollection;
+                        }
+                        _logger.LogInformation("Loaded {Count} tasks into dgTasks", _tasksCollection.Count);
+                    });
                 }
-
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    _tasksCollection.Clear();
-                    foreach (var task in tasks)
-                    {
-                        _tasksCollection.Add(task);
-                    }
-                    if (dgTasks.ItemsSource == null)
-                    {
-                        dgTasks.ItemsSource = _tasksCollection;
-                    }
-                    _logger.LogInformation("Loaded {Count} tasks into dgTasks", _tasksCollection.Count);
-                });
             }
             catch (Exception ex)
             {
@@ -569,7 +573,7 @@ namespace InspectionWorkApp
                     return;
                 }
 
-                using (await _dbLock.LockAsync())
+                using (var db = _dbFactory.CreateDbContext())
                 {
                     try
                     {
@@ -586,7 +590,7 @@ namespace InspectionWorkApp
                         DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : today.AddHours(20);
                         _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
 
-                        using (var transaction = await _db.Database.BeginTransactionAsync().ConfigureAwait(false))
+                        using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
                         {
                             try
                             {
@@ -596,7 +600,7 @@ namespace InspectionWorkApp
                                     var assignmentId = task.Id;
                                     _logger.LogInformation("Processing task completion for AssignmentId={AssignmentId}", assignmentId);
 
-                                    var existingExecution = await _db.TOExecutions
+                                    var existingExecution = await db.TOExecutions
                                         .AsNoTracking()
                                         .FirstOrDefaultAsync(e => e.AssignmentId == assignmentId && e.DueDateTime == shiftStart)
                                         .ConfigureAwait(false);
@@ -615,9 +619,9 @@ namespace InspectionWorkApp
                                         Status = 1,
                                         DueDateTime = shiftStart
                                     };
-                                    _db.TOExecutions.Add(execution);
+                                    db.TOExecutions.Add(execution);
 
-                                    var assignment = await _db.TOWorkAssignments
+                                    var assignment = await db.TOWorkAssignments
                                         .FirstOrDefaultAsync(a => a.Id == assignmentId)
                                         .ConfigureAwait(false);
                                     if (assignment == null)
@@ -630,7 +634,7 @@ namespace InspectionWorkApp
                                     completedCount++;
                                 }
 
-                                await _db.SaveChangesAsync().ConfigureAwait(false);
+                                await db.SaveChangesAsync().ConfigureAwait(false);
                                 await transaction.CommitAsync().ConfigureAwait(false);
 
                                 var message = completedCount == 1 ? "Задача отмечена как выполненная!" : $"Отмечено как выполненные: {completedCount} задач(и)!";
@@ -690,7 +694,7 @@ namespace InspectionWorkApp
                     return;
                 }
 
-                using (await _dbLock.LockAsync())
+                using (var db = _dbFactory.CreateDbContext())
                 {
                     try
                     {
@@ -707,7 +711,7 @@ namespace InspectionWorkApp
                         DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : today.AddHours(20);
                         _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
 
-                        using (var transaction = await _db.Database.BeginTransactionAsync().ConfigureAwait(false))
+                        using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
                         {
                             try
                             {
@@ -717,7 +721,7 @@ namespace InspectionWorkApp
                                     var assignmentId = task.Id;
                                     _logger.LogInformation("Processing task cancellation for AssignmentId={AssignmentId}", assignmentId);
 
-                                    var existingExecution = await _db.TOExecutions
+                                    var existingExecution = await db.TOExecutions
                                         .AsNoTracking()
                                         .FirstOrDefaultAsync(e => e.AssignmentId == assignmentId && e.DueDateTime == shiftStart)
                                         .ConfigureAwait(false);
@@ -736,9 +740,9 @@ namespace InspectionWorkApp
                                         Status = 2,
                                         DueDateTime = shiftStart
                                     };
-                                    _db.TOExecutions.Add(execution);
+                                    db.TOExecutions.Add(execution);
 
-                                    var assignment = await _db.TOWorkAssignments
+                                    var assignment = await db.TOWorkAssignments
                                         .FirstOrDefaultAsync(a => a.Id == assignmentId)
                                         .ConfigureAwait(false);
                                     if (assignment == null)
@@ -751,7 +755,7 @@ namespace InspectionWorkApp
                                     canceledCount++;
                                 }
 
-                                await _db.SaveChangesAsync().ConfigureAwait(false);
+                                await db.SaveChangesAsync().ConfigureAwait(false);
                                 await transaction.CommitAsync().ConfigureAwait(false);
 
                                 var message = canceledCount == 1 ? "Задача отменена!" : $"Отменено: {canceledCount} задач(и)!";
@@ -792,7 +796,7 @@ namespace InspectionWorkApp
         private async void BtnOpenAdmin_Click(object sender, RoutedEventArgs e)
         {
             _logger.LogInformation("BtnOpenAdmin_Click started, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
-            using (await _dbLock.LockAsync().ConfigureAwait(false))
+            using (var db = _dbFactory.CreateDbContext())
             {
                 try
                 {
@@ -803,7 +807,7 @@ namespace InspectionWorkApp
                         return;
                     }
 
-                    var adminWindow = new AdminWindow(_db, _operatorService);
+                    var adminWindow = new AdminWindow(db, _operatorService);
                     adminWindow.ShowDialog();
                     await LoadTasksAsync();
                     _logger.LogInformation("Admin panel opened.");

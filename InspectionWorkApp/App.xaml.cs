@@ -35,7 +35,7 @@ namespace InspectionWorkApp
             services.AddSingleton(configuration);
 
             // Регистрация DbContext
-            services.AddDbContext<YourDbContext>(options =>
+            services.AddDbContextFactory<YourDbContext>(options =>
                 options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
 
             // Регистрация логирования
