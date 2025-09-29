@@ -587,7 +587,19 @@ namespace InspectionWorkApp
 
                         var now = DateTime.Now;
                         var today = now.Date;
-                        DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : today.AddHours(20);
+                        DateTime shiftStart;
+                        if (now.Hour >= 8 && now.Hour < 20)
+                        {
+                            shiftStart = today.AddHours(8);
+                        }
+                        else if (now.Hour >= 0 && now.Hour < 8)
+                        {
+                            shiftStart = today.AddDays(-1).AddHours(20);
+                        }
+                        else
+                        {
+                            shiftStart = today.AddHours(20);
+                        }
                         _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
 
                         using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
@@ -708,7 +720,19 @@ namespace InspectionWorkApp
 
                         var now = DateTime.Now;
                         var today = now.Date;
-                        DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : today.AddHours(20);
+                        DateTime shiftStart;
+                        if (now.Hour >= 8 && now.Hour < 20)
+                        {
+                            shiftStart = today.AddHours(8);
+                        }
+                        else if (now.Hour >= 0 && now.Hour < 8)
+                        {
+                            shiftStart = today.AddDays(-1).AddHours(20);
+                        }
+                        else
+                        {
+                            shiftStart = today.AddHours(20);
+                        }
                         _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
 
                         using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
