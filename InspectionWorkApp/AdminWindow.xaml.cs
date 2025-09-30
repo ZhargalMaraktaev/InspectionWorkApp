@@ -22,8 +22,45 @@ namespace InspectionWorkApp
             InitializeComponent();
             _db = db ?? throw new ArgumentNullException(nameof(db));
             _operatorService = operatorService ?? throw new ArgumentNullException(nameof(operatorService));
+
+            // Подписка на событие изменения оператора
+            _operatorService.OnOperatorChanged += OperatorService_OnOperatorChanged;
+
+            // Установка начального состояния txtCurrentOperator
+            UpdateOperatorStatus();
+
             LoadCombos();
             LoadWorks();
+        }
+
+        private void OperatorService_OnOperatorChanged(object sender, EventArgs e)
+        {
+            // Обновление статуса оператора при изменении
+            Dispatcher.Invoke(() =>
+            {
+                UpdateOperatorStatus();
+            });
+        }
+
+        private void UpdateOperatorStatus()
+        {
+            if (_operatorService.CurrentOperator != null)
+            {
+                txtCurrentOperator.Text = $"Авторизован: {_operatorService.CurrentOperator.FullName}";
+                txtCurrentOperator.Foreground = System.Windows.Media.Brushes.Green;
+            }
+            else
+            {
+                txtCurrentOperator.Text = "Не авторизован";
+                txtCurrentOperator.Foreground = System.Windows.Media.Brushes.Red;
+            }
+        }
+
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+        {
+            // Отписка от события для предотвращения утечек памяти
+            _operatorService.OnOperatorChanged -= OperatorService_OnOperatorChanged;
+            base.OnClosing(e);
         }
 
         private void LoadCombos()

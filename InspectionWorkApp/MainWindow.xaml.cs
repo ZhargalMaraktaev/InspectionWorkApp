@@ -6,16 +6,19 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Media.Animation;
+using System.Collections.Generic;
 
 namespace InspectionWorkApp
 {
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private readonly IDbContextFactory<YourDbContext> _dbFactory;
         private readonly OperatorService _operatorService;
@@ -31,6 +34,24 @@ namespace InspectionWorkApp
         private readonly AsyncLock _dbLock = new AsyncLock();
         private DateTime _lastSelectionChange = DateTime.MinValue;
         private readonly TimeSpan _debounceInterval = TimeSpan.FromMilliseconds(500);
+        private List<TaskViewModel> _allTasks = new List<TaskViewModel>(); // Полный список задач
+        private int _currentPage = 1;
+        private const int _pageSize = 6; // 6 элементов на страницу
+        private bool _isAdminRole; // Свойство для управления доступностью селекторов
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        public bool IsAdminRole
+        {
+            get => _isAdminRole;
+            set
+            {
+                _isAdminRole = value;
+                NotifyPropertyChanged(nameof(IsAdminRole));
+            }
+        }
+
+
         public MainWindow(IDbContextFactory<YourDbContext> dbFactory, OperatorService operatorService, COMController comController, ILogger<MainWindow> logger)
         {
             InitializeComponent();
@@ -38,16 +59,20 @@ namespace InspectionWorkApp
             _operatorService = operatorService ?? throw new ArgumentNullException(nameof(operatorService));
             _comController = comController ?? throw new ArgumentNullException(nameof(comController));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _dbLock = new AsyncLock(_logger); // Передаём логгер
-            // Подписка на события
+            _dbLock = new AsyncLock(_logger);
             _operatorService.OnOperatorChanged += OperatorService_OnOperatorChanged;
             _comController.StateChanged += ComController_StateChanged;
 
-            // Запуск чтения с COM-порта
+            // Установить DataContext для привязки
+            DataContext = this;
+
             _comController.IsReading = true;
             _logger.LogInformation("MainWindow initialized.");
+        }
 
-            // Удалено: _currentSectorId = Task.Run(GetCurrentSectorIdAsync).Result;
+        private void NotifyPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
@@ -55,9 +80,31 @@ namespace InspectionWorkApp
             try
             {
                 _currentSectorId = await GetCurrentSectorIdAsync();
-                _logger.LogInformation("Set _currentSectorId to {SectorId} from GetCurrentSectorIdAsync", _currentSectorId.HasValue ? _currentSectorId.Value.ToString() : "null"); 
+                _logger.LogInformation("Set _currentSectorId to {SectorId} from GetCurrentSectorIdAsync", _currentSectorId.HasValue ? _currentSectorId.Value.ToString() : "null");
                 await LoadCombosAsync();
                 await LoadTasksAsync();
+
+                // Установка начального состояния кнопки btnOpenAdmin
+                if (_operatorService.CurrentOperator != null)
+                {
+                    using (var db = _dbFactory.CreateDbContext())
+                    {
+                        var cardNumber = _operatorService.CurrentOperator.CardNumber;
+                        var skudRecord = await db.dic_SKUD
+                            .Where(s => s.IdCard == cardNumber)
+                            .Select(s => new { s.TORoleId })
+                            .FirstOrDefaultAsync()
+                            .ConfigureAwait(false);
+
+                        _currentRoleId = skudRecord?.TORoleId;
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            btnOpenAdmin.IsEnabled = _currentRoleId == 4; // Активна только для администратора
+                            IsAdminRole = _currentRoleId == 4;
+                            _logger.LogInformation("Initial btnOpenAdmin.IsEnabled set to {IsEnabled} for RoleId: {RoleId}", btnOpenAdmin.IsEnabled, _currentRoleId);
+                        });
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -65,106 +112,7 @@ namespace InspectionWorkApp
                 MessageBox.Show($"Ошибка при инициализации окна: {ex.Message}");
             }
         }
-        private async void DgTasks_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            var now = DateTime.Now;
-            if (now - _lastSelectionChange < _debounceInterval)
-            {
-                _logger.LogInformation("DgTasks_SelectionChanged skipped due to debounce, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
-                return;
-            }
-            _lastSelectionChange = now;
 
-            _logger.LogInformation("DgTasks_SelectionChanged started, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
-
-            try
-            {
-                var selectedTasks = dgTasks.SelectedItems.Cast<TaskViewModel>().ToList();
-                _logger.LogInformation("Selected tasks: {TaskIds}", string.Join(", ", selectedTasks.Select(t => t.Id)));
-
-                if (!selectedTasks.Any())
-                {
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        btnMarkCompleted.IsEnabled = false;
-                        btnCancelTask.IsEnabled = false;
-                        _logger.LogInformation("No tasks selected, buttons disabled");
-                    });
-                    return;
-                }
-
-                var assignmentIds = selectedTasks.Select(t => t.Id).ToList();
-                _logger.LogInformation("AssignmentIds: {AssignmentIds}", string.Join(", ", assignmentIds));
-                var jsonAssignmentIds = System.Text.Json.JsonSerializer.Serialize(assignmentIds);
-                _logger.LogInformation("JSON for assignmentIds: {Json}", jsonAssignmentIds);
-
-                if (!assignmentIds.Any())
-                {
-                    _logger.LogWarning("No valid task IDs selected, skipping query.");
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        btnMarkCompleted.IsEnabled = false;
-                        btnCancelTask.IsEnabled = false;
-                    });
-                    return;
-                }
-
-                bool hasUnprocessedTasks;
-                using (var db = _dbFactory.CreateDbContext())
-                {
- 
-                    var today = now.Date;
-                    DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : today.AddHours(20);
-
-                    var executions = new List<object>();
-                    foreach (var id in assignmentIds)
-                    {
-                        var execution = await db.TOExecutions
-                            .AsNoTracking()
-                            .Where(e => e.AssignmentId == id && e.DueDateTime == shiftStart)
-                            .Select(e => new { e.AssignmentId, e.OperatorId, e.ExecutionTime })
-                            .FirstOrDefaultAsync()
-                            .ConfigureAwait(true); // Возвращаемся в UI-поток
-                        if (execution != null)
-                            executions.Add(execution);
-                    }
-                    var executionsDict = executions.ToDictionary(
-                        e => (int)e.GetType().GetProperty("AssignmentId").GetValue(e),
-                        e => e);
-
-                    hasUnprocessedTasks = selectedTasks.Any(task =>
-                    {
-                        executionsDict.TryGetValue(task.Id, out var execution);
-                        return execution == null ||
-                               execution.GetType().GetProperty("OperatorId").GetValue(execution) == null ||
-                               execution.GetType().GetProperty("ExecutionTime").GetValue(execution) == null;
-                    });
-                }
-
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    btnMarkCompleted.IsEnabled = hasUnprocessedTasks;
-                    btnCancelTask.IsEnabled = hasUnprocessedTasks;
-                    _logger.LogInformation("Selection changed: {TaskCount} tasks selected, HasUnprocessedTasks={HasUnprocessed}, ButtonsEnabled={ButtonsEnabled}",
-                        selectedTasks.Count, hasUnprocessedTasks, hasUnprocessedTasks);
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error in DgTasks_SelectionChanged: {Message}, StackTrace: {StackTrace}, InnerException: {InnerException}",
-                    ex.Message, ex.StackTrace, ex.InnerException?.Message);
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    MessageBox.Show($"Ошибка при обработке выбора задач: {ex.Message}\nInner: {ex.InnerException?.Message}");
-                    btnMarkCompleted.IsEnabled = false;
-                    btnCancelTask.IsEnabled = false;
-                });
-            }
-            finally
-            {
-                _logger.LogInformation("Lock released in DgTasks_SelectionChanged, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
-            }
-        }
         private void ComController_StateChanged(object sender, COMEventArgs.ReadingDataEventArgs e)
         {
             Dispatcher.Invoke(() =>
@@ -194,6 +142,7 @@ namespace InspectionWorkApp
                 }
             });
         }
+
         private async Task<int?> GetCurrentSectorIdAsync()
         {
             using (var db = _dbFactory.CreateDbContext())
@@ -224,10 +173,11 @@ namespace InspectionWorkApp
                 }
             }
         }
+
         private async void OperatorService_OnOperatorChanged(object sender, EventArgs e)
         {
             _logger.LogInformation("OperatorService_OnOperatorChanged started, ThreadId={ThreadId}, PersonnelNumber={PersonnelNumber}",
-                Thread.CurrentThread.ManagedThreadId, _operatorService.CurrentOperator?.PersonnelNumber ?? "null");
+                System.Threading.Thread.CurrentThread.ManagedThreadId, _operatorService.CurrentOperator?.PersonnelNumber ?? "null");
 
             if (_isLoadingTasks)
             {
@@ -241,15 +191,6 @@ namespace InspectionWorkApp
                 {
                     if (_operatorService.CurrentOperator != null)
                     {
-                        await Dispatcher.InvokeAsync(() =>
-                        {
-                            txtOperatorStatus.Text = $"Авторизован: {_operatorService.CurrentOperator.FullName} ({_operatorService.CurrentOperator.PersonnelNumber})";
-                            txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Green;
-                            btnMarkCompleted.IsEnabled = true;
-                            btnCancelTask.IsEnabled = true;
-                            btnOpenAdmin.IsEnabled = true;
-                        });
-
                         var cardNumber = _operatorService.CurrentOperator.CardNumber;
                         var skudRecord = await db.dic_SKUD
                             .Where(s => s.IdCard == cardNumber)
@@ -257,10 +198,16 @@ namespace InspectionWorkApp
                             .FirstOrDefaultAsync()
                             .ConfigureAwait(false);
 
-                        if (skudRecord?.TORoleId != null)
+                        _currentRoleId = skudRecord?.TORoleId;
+
+                        await Dispatcher.InvokeAsync(() =>
                         {
-                            _currentRoleId = skudRecord.TORoleId;
-                            await Dispatcher.InvokeAsync(() =>
+                            txtOperatorStatus.Text = $"Авторизован: {_operatorService.CurrentOperator.FullName} ({_operatorService.CurrentOperator.PersonnelNumber})";
+                            txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Green;
+                            btnOpenAdmin.IsEnabled = _currentRoleId == 4; // Активна только для администратора
+                            IsAdminRole = _currentRoleId == 4;
+
+                            if (skudRecord?.TORoleId != null)
                             {
                                 var roles = cmbRole.ItemsSource as List<Role>;
                                 var selectedRole = roles?.FirstOrDefault(r => r.Id == _currentRoleId.Value);
@@ -275,12 +222,15 @@ namespace InspectionWorkApp
                                     _logger.LogWarning("TORoleId {TORoleId} not found in TORoles for cardNumber: {cardNumber}",
                                         skudRecord.TORoleId, cardNumber);
                                 }
-                            });
-                        }
-                        else
-                        {
-                            _logger.LogWarning("No TORoleId found in dic_SKUD for cardNumber: {cardNumber}", cardNumber);
-                        }
+                            }
+                            else
+                            {
+                                _logger.LogWarning("No TORoleId found in dic_SKUD for cardNumber: {cardNumber}", cardNumber);
+                                cmbRole.SelectedItem = null;
+                            }
+
+                            _logger.LogInformation("IsAdminRole set to {IsAdminRole} and btnOpenAdmin.IsEnabled set to {IsEnabled} for RoleId: {RoleId}", IsAdminRole, btnOpenAdmin.IsEnabled, _currentRoleId);
+                        });
                     }
                     else
                     {
@@ -288,11 +238,11 @@ namespace InspectionWorkApp
                         {
                             txtOperatorStatus.Text = "Не авторизован";
                             txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Red;
-                            btnMarkCompleted.IsEnabled = false;
-                            btnCancelTask.IsEnabled = false;
                             btnOpenAdmin.IsEnabled = false;
                             _currentRoleId = null;
                             cmbRole.SelectedItem = null;
+                            IsAdminRole = false;
+                            _logger.LogInformation("Operator deauthenticated, btnOpenAdmin.IsEnabled set to False");
                         });
                     }
 
@@ -308,7 +258,7 @@ namespace InspectionWorkApp
             }
             finally
             {
-                _logger.LogInformation("Lock released in OperatorService_OnOperatorChanged, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
+                _logger.LogInformation("Lock released in OperatorService_OnOperatorChanged, ThreadId={ThreadId}", System.Threading.Thread.CurrentThread.ManagedThreadId);
             }
         }
 
@@ -347,14 +297,11 @@ namespace InspectionWorkApp
                             _logger.LogWarning("GetCurrentSectorIdAsync returned null, no sector selected");
                         }
 
-                        // Получаем текущий TORoleId из CurrentOperator
                         Dispatcher.Invoke(async () =>
                         {
-                            // Получаем текущий TORoleId из CurrentOperator
                             var currentOperator = _operatorService.CurrentOperator;
-                            if (currentOperator != null /* && currentOperator.TORoleId.HasValue */)
+                            if (currentOperator != null)
                             {
-                                // Получаем TORoleId из dic_SKUD, если оператор авторизован
                                 var cardNumber = currentOperator.CardNumber;
                                 var skudRecord = await db.dic_SKUD
                                     .Where(s => s.IdCard == cardNumber)
@@ -364,6 +311,9 @@ namespace InspectionWorkApp
                                 if (skudRecord?.TORoleId != null)
                                 {
                                     _currentRoleId = skudRecord.TORoleId;
+                                    IsAdminRole = _currentRoleId == 4; // true только для администратора
+                                    _logger.LogInformation("IsAdminRole set to {IsAdminRole} for RoleId: {RoleId}", IsAdminRole, _currentRoleId);
+
                                     var selectedRole = roles.FirstOrDefault(r => r.Id == _currentRoleId.Value);
                                     if (selectedRole != null)
                                     {
@@ -379,6 +329,7 @@ namespace InspectionWorkApp
                                 {
                                     _currentRoleId = null;
                                     cmbRole.SelectedItem = null;
+                                    IsAdminRole = false;
                                     _logger.LogWarning("No TORoleId found in dic_SKUD for cardNumber: {cardNumber}", cardNumber);
                                 }
                             }
@@ -386,6 +337,7 @@ namespace InspectionWorkApp
                             {
                                 _currentRoleId = null;
                                 cmbRole.SelectedItem = null;
+                                IsAdminRole = false;
                                 _logger.LogWarning("No current operator or no TORoleId for cardNumber: {cardNumber}", currentOperator?.CardNumber ?? "null");
                             }
                         });
@@ -428,7 +380,7 @@ namespace InspectionWorkApp
             try
             {
                 using (var db = _dbFactory.CreateDbContext())
-                { 
+                {
                     var now = DateTime.Now;
                     var today = now.Date;
                     DateTime shiftStart;
@@ -453,12 +405,18 @@ namespace InspectionWorkApp
                         .Include(a => a.Freq)
                         .Where(a => !a.IsCanceled);
 
-                    if (_currentRoleId.HasValue)
+                    // Фильтр по роли применяется только для НЕ администратора
+                    if (_currentRoleId.HasValue && _currentRoleId != 4) // Администратор (Id=4) видит все работы
                     {
                         assignmentsQuery = assignmentsQuery.Where(a => a.RoleId == _currentRoleId.Value);
                         _logger.LogInformation("Filtering tasks by RoleId: {RoleId}", _currentRoleId.Value);
                     }
+                    else if (_currentRoleId == 4)
+                    {
+                        _logger.LogInformation("No RoleId filter applied for Administrator (RoleId=4)");
+                    }
 
+                    // Фильтр по сектору применяется для всех ролей, если сектор выбран
                     if (_currentSectorId.HasValue)
                     {
                         assignmentsQuery = assignmentsQuery.Where(a => a.SectorId == _currentSectorId.Value);
@@ -482,15 +440,15 @@ namespace InspectionWorkApp
                         {
                             var days = freq.Id switch
                             {
-                                2 => 7,
-                                3 => 14,
-                                4 => 30,
-                                5 => 365,
+                                2 => freq.IntervalDay ?? 0,
+                                3 => freq.IntervalDay ?? 0,
+                                4 => freq.IntervalDay ?? 0,
+                                5 => freq.IntervalDay ?? 0,
                                 _ => 7
                             };
                             nextDue = dueDateTime == _defaultExecutionTime
                                 ? today
-                                : (dueDateTime.HasValue ? dueDateTime.Value.AddDays(days) : today);
+                                : (dueDateTime.HasValue ? dueDateTime.Value.AddDays((double)days) : today);
                         }
 
                         if (freq.Id == 1 || nextDue <= now)
@@ -516,7 +474,8 @@ namespace InspectionWorkApp
                                 WorkType = a.WorkType?.WorkType ?? "Unknown",
                                 DueDateTime = nextDue,
                                 StatusName = statusName,
-                                ExecutionTime = execution?.ExecutionTime
+                                ExecutionTime = execution?.ExecutionTime,
+                                IsUnprocessed = execution == null || execution.ExecutionTime == null
                             });
 
                             _logger.LogInformation("Task AssignmentId={AssignmentId}: WorkName={WorkName}, Status={StatusName}, DueDateTime={DueDateTime}, ExecutionTime={ExecutionTime}",
@@ -526,16 +485,14 @@ namespace InspectionWorkApp
 
                     await Dispatcher.InvokeAsync(() =>
                     {
-                        _tasksCollection.Clear();
-                        foreach (var task in tasks)
-                        {
-                            _tasksCollection.Add(task);
-                        }
+                        _allTasks = tasks;
+                        //_currentPage = 1;
+                       UpdatePagedTasks();
                         if (dgTasks.ItemsSource == null)
                         {
                             dgTasks.ItemsSource = _tasksCollection;
                         }
-                        _logger.LogInformation("Loaded {Count} tasks into dgTasks", _tasksCollection.Count);
+                        _logger.LogInformation("Loaded {Count} tasks into dgTasks", _allTasks.Count);
                     });
                 }
             }
@@ -551,269 +508,219 @@ namespace InspectionWorkApp
             }
         }
 
-        private async void BtnMarkCompleted_Click(object sender, RoutedEventArgs e)
+        private void UpdatePagedTasks()
         {
-            _logger.LogInformation("BtnMarkCompleted_Click started, ThreadId={ThreadId}, Sender={SenderType}", Thread.CurrentThread.ManagedThreadId, sender.GetType().Name);
-            await Dispatcher.InvokeAsync(() => btnMarkCompleted.IsEnabled = false);
-
-            try
+            _tasksCollection.Clear();
+            var pagedTasks = _allTasks.Skip((_currentPage - 1) * _pageSize).Take(_pageSize);
+            foreach (var task in pagedTasks)
             {
-                if (_operatorService.CurrentOperator == null)
-                {
-                    _logger.LogWarning("Attempt to mark tasks completed without operator authentication.");
-                    await Dispatcher.InvokeAsync(() => MessageBox.Show("Авторизуйтесь, считав карту!"));
-                    return;
-                }
-
-                var selectedTasks = await Dispatcher.InvokeAsync(() => dgTasks.SelectedItems.Cast<TaskViewModel>().ToList());
-                if (!selectedTasks.Any())
-                {
-                    _logger.LogWarning("No tasks selected in dgTasks when attempting to mark completed.");
-                    await Dispatcher.InvokeAsync(() => MessageBox.Show("Выберите хотя бы одну задачу в таблице!"));
-                    return;
-                }
-
-                using (var db = _dbFactory.CreateDbContext())
-                {
-                    try
-                    {
-                        var operatorId = await _operatorService.GetOperatorIdAsync(_operatorService.CurrentOperator.PersonnelNumber).ConfigureAwait(false);
-                        if (operatorId == null)
-                        {
-                            _logger.LogWarning("OperatorId not found for personnelNumber: {PersonnelNumber}", _operatorService.CurrentOperator.PersonnelNumber);
-                            await Dispatcher.InvokeAsync(() => MessageBox.Show("Не удалось определить ID оператора."));
-                            return;
-                        }
-
-                        var now = DateTime.Now;
-                        var today = now.Date;
-                        DateTime shiftStart;
-                        if (now.Hour >= 8 && now.Hour < 20)
-                        {
-                            shiftStart = today.AddHours(8);
-                        }
-                        else if (now.Hour >= 0 && now.Hour < 8)
-                        {
-                            shiftStart = today.AddDays(-1).AddHours(20);
-                        }
-                        else
-                        {
-                            shiftStart = today.AddHours(20);
-                        }
-                        _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
-
-                        using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
-                        {
-                            try
-                            {
-                                int completedCount = 0;
-                                foreach (var task in selectedTasks)
-                                {
-                                    var assignmentId = task.Id;
-                                    _logger.LogInformation("Processing task completion for AssignmentId={AssignmentId}", assignmentId);
-
-                                    var existingExecution = await db.TOExecutions
-                                        .AsNoTracking()
-                                        .FirstOrDefaultAsync(e => e.AssignmentId == assignmentId && e.DueDateTime == shiftStart)
-                                        .ConfigureAwait(false);
-                                    if (existingExecution != null)
-                                    {
-                                        _logger.LogWarning("Task already processed for AssignmentId={AssignmentId}, DueDateTime={DueDateTime}, Status={Status}",
-                                            assignmentId, existingExecution.DueDateTime, existingExecution.Status);
-                                        continue;
-                                    }
-
-                                    var execution = new Execution
-                                    {
-                                        AssignmentId = assignmentId,
-                                        OperatorId = operatorId,
-                                        ExecutionTime = now,
-                                        Status = 1,
-                                        DueDateTime = shiftStart
-                                    };
-                                    db.TOExecutions.Add(execution);
-
-                                    var assignment = await db.TOWorkAssignments
-                                        .FirstOrDefaultAsync(a => a.Id == assignmentId)
-                                        .ConfigureAwait(false);
-                                    if (assignment == null)
-                                    {
-                                        _logger.LogError("Assignment not found for Id: {AssignmentId}", assignmentId);
-                                        continue;
-                                    }
-
-                                    assignment.LastExecTime = shiftStart;
-                                    completedCount++;
-                                }
-
-                                await db.SaveChangesAsync().ConfigureAwait(false);
-                                await transaction.CommitAsync().ConfigureAwait(false);
-
-                                var message = completedCount == 1 ? "Задача отмечена как выполненная!" : $"Отмечено как выполненные: {completedCount} задач(и)!";
-                                await Dispatcher.InvokeAsync(() => MessageBox.Show(message));
-                                _logger.LogInformation("Tasks completed: Count={Count}, OperatorId={OperatorId}, ShiftStart={ShiftStart}", completedCount, operatorId, shiftStart);
-
-                                _isLoadingTasks = false;
-                                await LoadTasksAsync();
-                            }
-                            catch (DbUpdateException ex)
-                            {
-                                await transaction.RollbackAsync().ConfigureAwait(false);
-                                _logger.LogError(ex, "Error completing tasks");
-                                await Dispatcher.InvokeAsync(() => MessageBox.Show($"Ошибка при сохранении: {ex.InnerException?.Message ?? ex.Message}"));
-                            }
-                            catch (Exception ex)
-                            {
-                                await transaction.RollbackAsync().ConfigureAwait(false);
-                                _logger.LogError(ex, "Unexpected error completing tasks");
-                                await Dispatcher.InvokeAsync(() => MessageBox.Show($"Непредвиденная ошибка: {ex.Message}"));
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Unexpected error in BtnMarkCompleted_Click");
-                        await Dispatcher.InvokeAsync(() => MessageBox.Show($"Ошибка: {ex.Message}"));
-                    }
-                }
+                _tasksCollection.Add(task);
             }
-            finally
+
+            int totalPages = (int)Math.Ceiling((double)_allTasks.Count / _pageSize);
+            txtPageInfo.Text = $"{_currentPage} из {totalPages}";
+            btnPrevPage.IsEnabled = _currentPage > 1;
+            btnNextPage.IsEnabled = _currentPage < totalPages;
+        }
+
+        private void BtnPrevPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage > 1)
             {
-                await Dispatcher.InvokeAsync(() => btnMarkCompleted.IsEnabled = true);
-                _logger.LogInformation("BtnMarkCompleted_Click completed, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
+                _currentPage--;
+                UpdatePagedTasks();
             }
         }
 
-        private async void BtnCancelTask_Click(object sender, RoutedEventArgs e)
+        private void BtnNextPage_Click(object sender, RoutedEventArgs e)
         {
-            _logger.LogInformation("BtnCancelTask_Click started, ThreadId={ThreadId}, Sender={SenderType}", Thread.CurrentThread.ManagedThreadId, sender.GetType().Name);
-            await Dispatcher.InvokeAsync(() => btnCancelTask.IsEnabled = false);
+            int totalPages = (int)Math.Ceiling((double)_allTasks.Count / _pageSize);
+            if (_currentPage < totalPages)
+            {
+                _currentPage++;
+                UpdatePagedTasks();
+            }
+        }
+
+        private async void BtnMarkCompletedPerTask_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            if (button == null || button.Tag == null) return;
+
+            int assignmentId = (int)button.Tag;
+            await MarkTaskCompletedAsync(assignmentId);
+        }
+
+        private async void BtnCancelTaskPerTask_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            if (button == null || button.Tag == null) return;
+
+            int assignmentId = (int)button.Tag;
+            await CancelTaskAsync(assignmentId);
+        }
+
+        private async Task MarkTaskCompletedAsync(int assignmentId)
+        {
+            _logger.LogInformation("MarkTaskCompletedAsync started for AssignmentId={AssignmentId}", assignmentId);
 
             try
             {
                 if (_operatorService.CurrentOperator == null)
                 {
-                    _logger.LogWarning("Attempt to cancel tasks without operator authentication.");
-                    await Dispatcher.InvokeAsync(() => MessageBox.Show("Авторизуйтесь, считав карту!"));
-                    return;
-                }
-
-                var selectedTasks = await Dispatcher.InvokeAsync(() => dgTasks.SelectedItems.Cast<TaskViewModel>().ToList());
-                if (!selectedTasks.Any())
-                {
-                    _logger.LogWarning("No tasks selected in dgTasks when attempting to cancel.");
-                    await Dispatcher.InvokeAsync(() => MessageBox.Show("Выберите хотя бы одну задачу в таблице!"));
+                    _logger.LogWarning("Attempt to mark task completed without operator authentication.");
+                    MessageBox.Show("Авторизуйтесь, считав карту!");
                     return;
                 }
 
                 using (var db = _dbFactory.CreateDbContext())
                 {
-                    try
+                    var operatorId = await _operatorService.GetOperatorIdAsync(_operatorService.CurrentOperator.PersonnelNumber).ConfigureAwait(false);
+                    if (operatorId == null)
                     {
-                        var operatorId = await _operatorService.GetOperatorIdAsync(_operatorService.CurrentOperator.PersonnelNumber).ConfigureAwait(false);
-                        if (operatorId == null)
-                        {
-                            _logger.LogWarning("OperatorId not found for personnelNumber: {PersonnelNumber}", _operatorService.CurrentOperator.PersonnelNumber);
-                            await Dispatcher.InvokeAsync(() => MessageBox.Show("Не удалось определить ID оператора."));
-                            return;
-                        }
-
-                        var now = DateTime.Now;
-                        var today = now.Date;
-                        DateTime shiftStart;
-                        if (now.Hour >= 8 && now.Hour < 20)
-                        {
-                            shiftStart = today.AddHours(8);
-                        }
-                        else if (now.Hour >= 0 && now.Hour < 8)
-                        {
-                            shiftStart = today.AddDays(-1).AddHours(20);
-                        }
-                        else
-                        {
-                            shiftStart = today.AddHours(20);
-                        }
-                        _logger.LogInformation("ShiftStart calculated: {ShiftStart}", shiftStart);
-
-                        using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
-                        {
-                            try
-                            {
-                                int canceledCount = 0;
-                                foreach (var task in selectedTasks)
-                                {
-                                    var assignmentId = task.Id;
-                                    _logger.LogInformation("Processing task cancellation for AssignmentId={AssignmentId}", assignmentId);
-
-                                    var existingExecution = await db.TOExecutions
-                                        .AsNoTracking()
-                                        .FirstOrDefaultAsync(e => e.AssignmentId == assignmentId && e.DueDateTime == shiftStart)
-                                        .ConfigureAwait(false);
-                                    if (existingExecution != null)
-                                    {
-                                        _logger.LogWarning("Task already processed for AssignmentId={AssignmentId}, DueDateTime={DueDateTime}, Status={Status}",
-                                            assignmentId, existingExecution.DueDateTime, existingExecution.Status);
-                                        continue;
-                                    }
-
-                                    var execution = new Execution
-                                    {
-                                        AssignmentId = assignmentId,
-                                        OperatorId = operatorId,
-                                        ExecutionTime = now,
-                                        Status = 2,
-                                        DueDateTime = shiftStart
-                                    };
-                                    db.TOExecutions.Add(execution);
-
-                                    var assignment = await db.TOWorkAssignments
-                                        .FirstOrDefaultAsync(a => a.Id == assignmentId)
-                                        .ConfigureAwait(false);
-                                    if (assignment == null)
-                                    {
-                                        _logger.LogError("Assignment not found for Id: {AssignmentId}", assignmentId);
-                                        continue;
-                                    }
-
-                                    assignment.LastExecTime = shiftStart;
-                                    canceledCount++;
-                                }
-
-                                await db.SaveChangesAsync().ConfigureAwait(false);
-                                await transaction.CommitAsync().ConfigureAwait(false);
-
-                                var message = canceledCount == 1 ? "Задача отменена!" : $"Отменено: {canceledCount} задач(и)!";
-                                await Dispatcher.InvokeAsync(() => MessageBox.Show(message));
-                                _logger.LogInformation("Tasks canceled: Count={Count}, OperatorId={OperatorId}, ShiftStart={ShiftStart}", canceledCount, operatorId, shiftStart);
-
-                                _isLoadingTasks = false;
-                                await LoadTasksAsync();
-                            }
-                            catch (DbUpdateException ex)
-                            {
-                                await transaction.RollbackAsync().ConfigureAwait(false);
-                                _logger.LogError(ex, "Error canceling tasks");
-                                await Dispatcher.InvokeAsync(() => MessageBox.Show($"Ошибка при сохранении: {ex.InnerException?.Message ?? ex.Message}"));
-                            }
-                            catch (Exception ex)
-                            {
-                                await transaction.RollbackAsync().ConfigureAwait(false);
-                                _logger.LogError(ex, "Unexpected error canceling tasks");
-                                await Dispatcher.InvokeAsync(() => MessageBox.Show($"Непредвиденная ошибка: {ex.Message}"));
-                            }
-                        }
+                        _logger.LogWarning("OperatorId not found for personnelNumber: {PersonnelNumber}", _operatorService.CurrentOperator.PersonnelNumber);
+                        MessageBox.Show("Не удалось определить ID оператора.");
+                        return;
                     }
-                    catch (Exception ex)
+
+                    var now = DateTime.Now;
+                    var today = now.Date;
+                    DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : (now.Hour >= 0 && now.Hour < 8 ? today.AddDays(-1).AddHours(20) : today.AddHours(20));
+
+                    var existingExecution = await db.TOExecutions
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(e => e.AssignmentId == assignmentId && e.DueDateTime == shiftStart)
+                        .ConfigureAwait(false);
+
+                    if (existingExecution != null)
                     {
-                        _logger.LogError(ex, "Unexpected error in BtnCancelTask_Click");
-                        await Dispatcher.InvokeAsync(() => MessageBox.Show($"Ошибка: {ex.Message}"));
+                        _logger.LogWarning("Task already processed for AssignmentId={AssignmentId}", assignmentId);
+                        MessageBox.Show("Задача уже обработана!");
+                        return;
+                    }
+
+                    using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
+                    {
+                        try
+                        {
+                            var execution = new Execution
+                            {
+                                AssignmentId = assignmentId,
+                                OperatorId = operatorId,
+                                ExecutionTime = now,
+                                Status = 1,
+                                DueDateTime = shiftStart
+                            };
+                            db.TOExecutions.Add(execution);
+
+                            var assignment = await db.TOWorkAssignments
+                                .FirstOrDefaultAsync(a => a.Id == assignmentId)
+                                .ConfigureAwait(false);
+                            if (assignment != null)
+                            {
+                                assignment.LastExecTime = shiftStart;
+                            }
+
+                            await db.SaveChangesAsync().ConfigureAwait(false);
+                            await transaction.CommitAsync().ConfigureAwait(false);
+
+                            MessageBox.Show("Задача отмечена как выполненная!");
+                            await LoadTasksAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            await transaction.RollbackAsync().ConfigureAwait(false);
+                            _logger.LogError(ex, "Error marking task completed");
+                            MessageBox.Show($"Ошибка: {ex.Message}");
+                        }
                     }
                 }
             }
             finally
             {
-                await Dispatcher.InvokeAsync(() => btnCancelTask.IsEnabled = true);
-                _logger.LogInformation("BtnCancelTask_Click completed, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
+                _logger.LogInformation("MarkTaskCompletedAsync completed for AssignmentId={AssignmentId}", assignmentId);
+            }
+        }
+
+        private async Task CancelTaskAsync(int assignmentId)
+        {
+            _logger.LogInformation("CancelTaskAsync started for AssignmentId={AssignmentId}", assignmentId);
+
+            try
+            {
+                if (_operatorService.CurrentOperator == null)
+                {
+                    _logger.LogWarning("Attempt to cancel task without operator authentication.");
+                    MessageBox.Show("Авторизуйтесь, считав карту!");
+                    return;
+                }
+
+                using (var db = _dbFactory.CreateDbContext())
+                {
+                    var operatorId = await _operatorService.GetOperatorIdAsync(_operatorService.CurrentOperator.PersonnelNumber).ConfigureAwait(false);
+                    if (operatorId == null)
+                    {
+                        _logger.LogWarning("OperatorId not found for personnelNumber: {PersonnelNumber}", _operatorService.CurrentOperator.PersonnelNumber);
+                        MessageBox.Show("Не удалось определить ID оператора.");
+                        return;
+                    }
+
+                    var now = DateTime.Now;
+                    var today = now.Date;
+                    DateTime shiftStart = now.Hour >= 8 && now.Hour < 20 ? today.AddHours(8) : (now.Hour >= 0 && now.Hour < 8 ? today.AddDays(-1).AddHours(20) : today.AddHours(20));
+
+                    var existingExecution = await db.TOExecutions
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(e => e.AssignmentId == assignmentId && e.DueDateTime == shiftStart)
+                        .ConfigureAwait(false);
+
+                    if (existingExecution != null)
+                    {
+                        _logger.LogWarning("Task already processed for AssignmentId={AssignmentId}", assignmentId);
+                        MessageBox.Show("Задача уже обработана!");
+                        return;
+                    }
+
+                    using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
+                    {
+                        try
+                        {
+                            var execution = new Execution
+                            {
+                                AssignmentId = assignmentId,
+                                OperatorId = operatorId,
+                                ExecutionTime = now,
+                                Status = 2,
+                                DueDateTime = shiftStart
+                            };
+                            db.TOExecutions.Add(execution);
+
+                            var assignment = await db.TOWorkAssignments
+                                .FirstOrDefaultAsync(a => a.Id == assignmentId)
+                                .ConfigureAwait(false);
+                            if (assignment != null)
+                            {
+                                assignment.LastExecTime = shiftStart;
+                            }
+
+                            await db.SaveChangesAsync().ConfigureAwait(false);
+                            await transaction.CommitAsync().ConfigureAwait(false);
+
+                            MessageBox.Show("Задача отменена!");
+                            await LoadTasksAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            await transaction.RollbackAsync().ConfigureAwait(false);
+                            _logger.LogError(ex, "Error canceling task");
+                            MessageBox.Show($"Ошибка: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                _logger.LogInformation("CancelTaskAsync completed for AssignmentId={AssignmentId}", assignmentId);
             }
         }
 
