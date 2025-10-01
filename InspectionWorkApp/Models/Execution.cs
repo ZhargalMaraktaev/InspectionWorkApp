@@ -17,5 +17,6 @@ namespace InspectionWorkApp.Models
         public int Status { get; set; }
         public TOStatuses status { get; set; }
         public DateTime? DueDateTime { get; set; }
+        public string Comment { get; set; } // Новое поле для комментария
     }
 }

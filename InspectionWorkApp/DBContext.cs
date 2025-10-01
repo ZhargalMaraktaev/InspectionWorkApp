@@ -14,7 +14,7 @@ namespace InspectionWorkApp
         public DbSet<TOStatuses> TOStatuses { get; set; }
         public DbSet<WorkAssignment> TOWorkAssignments { get; set; }
         public DbSet<Execution> TOExecutions { get; set; }
-        public DbSet<PCNameSector> dic_PCNameSector { get; set; } // Добавлено
+        public DbSet<PCNameSector> dic_PCNameSector { get; set; }
 
         public YourDbContext(DbContextOptions<YourDbContext> options) : base(options) { }
 
@@ -29,7 +29,7 @@ namespace InspectionWorkApp
             modelBuilder.Entity<TOStatuses>().ToTable("TOStatuses", "dbo");
             modelBuilder.Entity<WorkAssignment>().ToTable("TOWorkAssignments", "dbo");
             modelBuilder.Entity<Execution>().ToTable("TOExecutions", "dbo");
-            modelBuilder.Entity<PCNameSector>().ToTable("dic_PCNameSector", "dbo"); // Добавлено
+            modelBuilder.Entity<PCNameSector>().ToTable("dic_PCNameSector", "dbo");
 
             modelBuilder.Entity<WorkAssignment>()
                 .HasOne(wa => wa.Work)
@@ -85,7 +85,6 @@ namespace InspectionWorkApp
                 .HasForeignKey(s => s.TORoleId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            // Добавлено: конфигурация для PCNameSector
             modelBuilder.Entity<PCNameSector>()
                 .HasOne(p => p.SectorNavigation)
                 .WithMany()
@@ -110,6 +109,12 @@ namespace InspectionWorkApp
             modelBuilder.Entity<Execution>()
                 .Property(e => e.DueDateTime)
                 .HasColumnType("datetime");
+
+            // Добавлено: конфигурация для поля Comment в Execution
+            modelBuilder.Entity<Execution>()
+                .Property(e => e.Comment)
+                .HasColumnType("nvarchar(max)")
+                .IsRequired(false); // Поле Comment не обязательно (NULL)
         }
     }
 }

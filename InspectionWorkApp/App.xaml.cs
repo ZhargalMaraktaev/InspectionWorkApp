@@ -66,13 +66,10 @@ namespace InspectionWorkApp
                 sp.GetRequiredService<Controller1C>(),
                 sp.GetRequiredService<ILogger<OperatorService>>(),
                 sp.GetRequiredService<COMController>()));
-            services.AddScoped<GenerateTasksJob>();
             services.AddScoped<GenerateAssignmentsJob>();
             services.AddScoped<MainWindow>();
             services.AddScoped<AdminWindow>();
             services.AddSingleton<DataInitializer>();
-
-            // Регистрация Quartz ISchedulerFactory
             services.AddSingleton<ISchedulerFactory, StdSchedulerFactory>();
             services.AddSingleton(provider =>
             {
@@ -104,21 +101,6 @@ namespace InspectionWorkApp
                 var scheduler = _serviceProvider.GetRequiredService<IScheduler>();
                 await scheduler.Start();
                 logger.LogInformation("Quartz scheduler started.");
-
-                // Задача для создания задач
-                var taskJob = JobBuilder.Create<GenerateTasksJob>()
-                    .WithIdentity("GenerateTasks", "Default")
-                    .Build();
-
-                var taskTrigger = TriggerBuilder.Create()
-                    .WithIdentity("DailyTrigger", "Default")
-                    .WithCronSchedule("0 0 8,20 * * ?", x => x.InTimeZone(TimeZoneInfo.Local))
-                    .Build();
-
-                await scheduler.ScheduleJob(taskJob, taskTrigger);
-                logger.LogInformation("Quartz scheduler started for GenerateTasksJob at 08:00 daily.");
-
-                // Задача для генерации назначений (без расписания, для ручного вызова)
                 var assignmentJob = JobBuilder.Create<GenerateAssignmentsJob>()
                     .WithIdentity("GenerateAssignmentsJob", "default")
                     .StoreDurably() // Хранить задачу без триггера

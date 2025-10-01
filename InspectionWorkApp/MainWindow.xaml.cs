@@ -38,6 +38,7 @@ namespace InspectionWorkApp
         private int _currentPage = 1;
         private const int _pageSize = 6; // 6 элементов на страницу
         private bool _isAdminRole; // Свойство для управления доступностью селекторов
+        private readonly ILoggerFactory _loggerFactory;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -52,7 +53,7 @@ namespace InspectionWorkApp
         }
 
 
-        public MainWindow(IDbContextFactory<YourDbContext> dbFactory, OperatorService operatorService, COMController comController, ILogger<MainWindow> logger)
+        public MainWindow(IDbContextFactory<YourDbContext> dbFactory, OperatorService operatorService, COMController comController, ILogger<MainWindow> logger, ILoggerFactory loggerFactory)
         {
             InitializeComponent();
             _dbFactory = dbFactory;
@@ -62,12 +63,15 @@ namespace InspectionWorkApp
             _dbLock = new AsyncLock(_logger);
             _operatorService.OnOperatorChanged += OperatorService_OnOperatorChanged;
             _comController.StateChanged += ComController_StateChanged;
+            _loggerFactory = loggerFactory;
+            _logger = loggerFactory.CreateLogger<MainWindow>();
 
             // Установить DataContext для привязки
             DataContext = this;
 
             _comController.IsReading = true;
             _logger.LogInformation("MainWindow initialized.");
+            _loggerFactory = loggerFactory;
         }
 
         private void NotifyPropertyChanged(string propertyName)
@@ -405,8 +409,7 @@ namespace InspectionWorkApp
                         .Include(a => a.Freq)
                         .Where(a => !a.IsCanceled);
 
-                    // Фильтр по роли применяется только для НЕ администратора
-                    if (_currentRoleId.HasValue && _currentRoleId != 4) // Администратор (Id=4) видит все работы
+                    if (_currentRoleId.HasValue && _currentRoleId != 4)
                     {
                         assignmentsQuery = assignmentsQuery.Where(a => a.RoleId == _currentRoleId.Value);
                         _logger.LogInformation("Filtering tasks by RoleId: {RoleId}", _currentRoleId.Value);
@@ -416,7 +419,6 @@ namespace InspectionWorkApp
                         _logger.LogInformation("No RoleId filter applied for Administrator (RoleId=4)");
                     }
 
-                    // Фильтр по сектору применяется для всех ролей, если сектор выбран
                     if (_currentSectorId.HasValue)
                     {
                         assignmentsQuery = assignmentsQuery.Where(a => a.SectorId == _currentSectorId.Value);
@@ -425,6 +427,9 @@ namespace InspectionWorkApp
 
                     var assignments = await assignmentsQuery.ToListAsync().ConfigureAwait(false);
                     var tasks = new List<TaskViewModel>();
+
+                    // Создаем логгер для TaskViewModel
+                    var taskViewModelLogger = _loggerFactory.CreateLogger<TaskViewModel>();
 
                     foreach (var a in assignments)
                     {
@@ -451,43 +456,42 @@ namespace InspectionWorkApp
                                 : (dueDateTime.HasValue ? dueDateTime.Value.AddDays((double)days) : today);
                         }
 
-                        if (freq.Id == 1 || nextDue <= now)
+                        var execution = await db.TOExecutions
+                            .AsNoTracking()
+                            .Where(e => e.AssignmentId == a.Id && e.DueDateTime == shiftStart)
+                            .Select(e => new { e.Status, e.ExecutionTime })
+                            .FirstOrDefaultAsync()
+                            .ConfigureAwait(false);
+
+                        if ((freq.Id == 1 || nextDue <= now) && execution == null)
                         {
-                            var execution = await db.TOExecutions
-                                .AsNoTracking()
-                                .Where(e => e.AssignmentId == a.Id && e.DueDateTime == shiftStart)
-                                .Select(e => new { e.Status, e.ExecutionTime })
-                                .FirstOrDefaultAsync()
-                                .ConfigureAwait(false);
+                            var statusName = "Не выполнена";
 
-                            string statusName = execution?.Status switch
-                            {
-                                1 => "Выполнена",
-                                2 => "Отменена",
-                                _ => "Не выполнена"
-                            };
-
-                            tasks.Add(new TaskViewModel
+                            tasks.Add(new TaskViewModel(taskViewModelLogger)
                             {
                                 Id = a.Id,
                                 WorkName = a.Work?.WorkName ?? "Unknown",
                                 WorkType = a.WorkType?.WorkType ?? "Unknown",
                                 DueDateTime = nextDue,
                                 StatusName = statusName,
-                                ExecutionTime = execution?.ExecutionTime,
-                                IsUnprocessed = execution == null || execution.ExecutionTime == null
+                                ExecutionTime = null,
+                                IsUnprocessed = true
                             });
 
                             _logger.LogInformation("Task AssignmentId={AssignmentId}: WorkName={WorkName}, Status={StatusName}, DueDateTime={DueDateTime}, ExecutionTime={ExecutionTime}",
-                                a.Id, a.Work?.WorkName, statusName, nextDue, execution?.ExecutionTime);
+                                a.Id, a.Work?.WorkName, statusName, nextDue, null);
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Task excluded: AssignmentId={AssignmentId}, WorkName={WorkName}, Reason=Task already processed or nextDue not due",
+                                a.Id, a.Work?.WorkName);
                         }
                     }
 
                     await Dispatcher.InvokeAsync(() =>
                     {
                         _allTasks = tasks;
-                        //_currentPage = 1;
-                       UpdatePagedTasks();
+                        UpdatePagedTasks();
                         if (dgTasks.ItemsSource == null)
                         {
                             dgTasks.ItemsSource = _tasksCollection;
@@ -548,7 +552,17 @@ namespace InspectionWorkApp
             if (button == null || button.Tag == null) return;
 
             int assignmentId = (int)button.Tag;
-            await MarkTaskCompletedAsync(assignmentId);
+            var task = button.DataContext as TaskViewModel;
+            if (task != null)
+            {
+                _logger.LogInformation("Marking task completed: AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, task.Comment ?? "null");
+                await MarkTaskCompletedAsync(assignmentId, task.Comment);
+            }
+            else
+            {
+                _logger.LogWarning("TaskViewModel is null in BtnMarkCompletedPerTask_Click for AssignmentId={AssignmentId}", assignmentId);
+                MessageBox.Show("Не удалось определить задачу.");
+            }
         }
 
         private async void BtnCancelTaskPerTask_Click(object sender, RoutedEventArgs e)
@@ -557,12 +571,22 @@ namespace InspectionWorkApp
             if (button == null || button.Tag == null) return;
 
             int assignmentId = (int)button.Tag;
-            await CancelTaskAsync(assignmentId);
+            var task = button.DataContext as TaskViewModel;
+            if (task != null)
+            {
+                _logger.LogInformation("Canceling task: AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, task.Comment ?? "null");
+                await CancelTaskAsync(assignmentId, task.Comment);
+            }
+            else
+            {
+                _logger.LogWarning("TaskViewModel is null in BtnCancelTaskPerTask_Click for AssignmentId={AssignmentId}", assignmentId);
+                MessageBox.Show("Не удалось определить задачу.");
+            }
         }
 
-        private async Task MarkTaskCompletedAsync(int assignmentId)
+        private async Task MarkTaskCompletedAsync(int assignmentId, string comment)
         {
-            _logger.LogInformation("MarkTaskCompletedAsync started for AssignmentId={AssignmentId}", assignmentId);
+            _logger.LogInformation("MarkTaskCompletedAsync started for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
 
             try
             {
@@ -609,7 +633,8 @@ namespace InspectionWorkApp
                                 OperatorId = operatorId,
                                 ExecutionTime = now,
                                 Status = 1,
-                                DueDateTime = shiftStart
+                                DueDateTime = shiftStart,
+                                Comment = comment // Сохраняем комментарий
                             };
                             db.TOExecutions.Add(execution);
 
@@ -624,13 +649,14 @@ namespace InspectionWorkApp
                             await db.SaveChangesAsync().ConfigureAwait(false);
                             await transaction.CommitAsync().ConfigureAwait(false);
 
+                            _logger.LogInformation("Task marked as completed for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
                             MessageBox.Show("Задача отмечена как выполненная!");
                             await LoadTasksAsync();
                         }
                         catch (Exception ex)
                         {
                             await transaction.RollbackAsync().ConfigureAwait(false);
-                            _logger.LogError(ex, "Error marking task completed");
+                            _logger.LogError(ex, "Error marking task completed for AssignmentId={AssignmentId}", assignmentId);
                             MessageBox.Show($"Ошибка: {ex.Message}");
                         }
                     }
@@ -642,9 +668,9 @@ namespace InspectionWorkApp
             }
         }
 
-        private async Task CancelTaskAsync(int assignmentId)
+        private async Task CancelTaskAsync(int assignmentId, string comment)
         {
-            _logger.LogInformation("CancelTaskAsync started for AssignmentId={AssignmentId}", assignmentId);
+            _logger.LogInformation("CancelTaskAsync started for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
 
             try
             {
@@ -691,7 +717,8 @@ namespace InspectionWorkApp
                                 OperatorId = operatorId,
                                 ExecutionTime = now,
                                 Status = 2,
-                                DueDateTime = shiftStart
+                                DueDateTime = shiftStart,
+                                Comment = comment // Сохраняем комментарий
                             };
                             db.TOExecutions.Add(execution);
 
@@ -706,13 +733,14 @@ namespace InspectionWorkApp
                             await db.SaveChangesAsync().ConfigureAwait(false);
                             await transaction.CommitAsync().ConfigureAwait(false);
 
+                            _logger.LogInformation("Task canceled for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
                             MessageBox.Show("Задача отменена!");
                             await LoadTasksAsync();
                         }
                         catch (Exception ex)
                         {
                             await transaction.RollbackAsync().ConfigureAwait(false);
-                            _logger.LogError(ex, "Error canceling task");
+                            _logger.LogError(ex, "Error canceling task for AssignmentId={AssignmentId}", assignmentId);
                             MessageBox.Show($"Ошибка: {ex.Message}");
                         }
                     }
