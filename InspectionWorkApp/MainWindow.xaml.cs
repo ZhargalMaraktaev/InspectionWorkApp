@@ -462,6 +462,7 @@ namespace InspectionWorkApp
                             .Select(e => new { e.Status, e.ExecutionTime })
                             .FirstOrDefaultAsync()
                             .ConfigureAwait(false);
+                        _logger.LogInformation("Execution check for AssignmentId={AssignmentId}, DueDateTime={DueDateTime}, Found={Found}", a.Id, shiftStart, execution != null);
 
                         if ((freq.Id == 1 || nextDue <= now) && execution == null)
                         {
@@ -650,8 +651,9 @@ namespace InspectionWorkApp
                             await transaction.CommitAsync().ConfigureAwait(false);
 
                             _logger.LogInformation("Task marked as completed for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
-                            MessageBox.Show("Задача отмечена как выполненная!");
                             await LoadTasksAsync();
+                            MessageBox.Show("Задача отмечена как выполненная!");
+                            
                         }
                         catch (Exception ex)
                         {
@@ -734,8 +736,8 @@ namespace InspectionWorkApp
                             await transaction.CommitAsync().ConfigureAwait(false);
 
                             _logger.LogInformation("Task canceled for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
-                            MessageBox.Show("Задача отменена!");
                             await LoadTasksAsync();
+                            MessageBox.Show("Задача отменена!");
                         }
                         catch (Exception ex)
                         {

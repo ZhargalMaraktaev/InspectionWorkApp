@@ -3,28 +3,44 @@
   "WorkspaceRootPath": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\generateassignmentsjob.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\generateassignmentsjob.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\adminwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\adminwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\adminwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\adminwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\dbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\dbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\models\\taskviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\models\\taskviewmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\dbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\dbcontext.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\services\\operatorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\services\\operatorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\interfaces\\dataaccesslayer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\interfaces\\dataaccesslayer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\models\\employee1cmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\models\\employee1cmodel.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\generateassignmentsjob.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\generateassignmentsjob.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\models\\execution.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -39,24 +55,12 @@
       "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\models\\workfrequency.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\adminwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\adminwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\adminwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
-      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\adminwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\models\\workassignment.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\models\\workassignment.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\models\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\models\\role.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\services\\operatorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|solutionrelative:inspectionworkapp\\services\\operatorservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{4D916C87-7668-4976-A265-588531624759}|InspectionWorkApp\\InspectionWorkApp.csproj|c:\\users\\z.maraktaev\\source\\repos\\inspectionworkapp\\inspectionworkapp\\converters\\datetimeconverter.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -82,7 +86,7 @@
       "DocumentGroups": [
         {
           "DockedHeight": 356,
-          "SelectedChildIndex": 17,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Bookmark",
@@ -91,6 +95,18 @@
             {
               "$type": "Document",
               "DocumentIndex": 8,
+              "Title": "Employee1CModel.cs",
+              "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\Employee1CModel.cs",
+              "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\Employee1CModel.cs",
+              "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\Employee1CModel.cs",
+              "RelativeToolTip": "InspectionWorkApp\\Models\\Employee1CModel.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABwAAABJAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2025-10-01T06:24:45.149Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 12,
               "Title": "WorkFrequency.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\WorkFrequency.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\WorkFrequency.cs",
@@ -102,42 +118,45 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 9,
+              "DocumentIndex": 0,
               "Title": "AdminWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\AdminWindow.xaml.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\AdminWindow.xaml.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\AdminWindow.xaml.cs",
               "RelativeToolTip": "InspectionWorkApp\\AdminWindow.xaml.cs",
-              "ViewState": "AgIAACcAAAAAAAAAAAAkwDoAAABLAAAAAAAAAA==",
+              "ViewState": "AgIAAAYAAAAAAAAAAAAAACEAAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-29T12:31:33.879Z"
+              "WhenOpened": "2025-09-29T12:31:33.879Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 13,
+              "DocumentIndex": 5,
               "Title": "OperatorService.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Services\\OperatorService.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Services\\OperatorService.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Services\\OperatorService.cs",
               "RelativeToolTip": "InspectionWorkApp\\Services\\OperatorService.cs",
-              "ViewState": "AgIAAHcAAAAAAAAAAAAswIsAAAAIAAAAAAAAAA==",
+              "ViewState": "AgIAAHkAAAAAAAAAAAArwIsAAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-29T06:10:41.784Z"
+              "WhenOpened": "2025-09-29T06:10:41.784Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 10,
+              "DocumentIndex": 1,
               "Title": "AdminWindow.xaml",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\AdminWindow.xaml",
               "RelativeDocumentMoniker": "InspectionWorkApp\\AdminWindow.xaml",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\AdminWindow.xaml",
               "RelativeToolTip": "InspectionWorkApp\\AdminWindow.xaml",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
-              "WhenOpened": "2025-09-26T11:43:18.561Z"
+              "WhenOpened": "2025-09-26T11:43:18.561Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 7,
+              "DocumentIndex": 11,
               "Title": "App.xaml.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\App.xaml.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\App.xaml.cs",
@@ -149,7 +168,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 7,
               "Title": "MainWindow.xaml",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\MainWindow.xaml",
               "RelativeDocumentMoniker": "InspectionWorkApp\\MainWindow.xaml",
@@ -161,7 +180,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 14,
+              "DocumentIndex": 15,
               "Title": "DateTimeConverter.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Converters\\DateTimeConverter.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Converters\\DateTimeConverter.cs",
@@ -173,7 +192,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 11,
+              "DocumentIndex": 13,
               "Title": "WorkAssignment.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\WorkAssignment.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\WorkAssignment.cs",
@@ -185,7 +204,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 16,
+              "DocumentIndex": 17,
               "Title": "WorkType.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\WorkType.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\WorkType.cs",
@@ -197,19 +216,20 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
+              "DocumentIndex": 4,
               "Title": "TaskViewModel.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\TaskViewModel.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\TaskViewModel.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\TaskViewModel.cs",
               "RelativeToolTip": "InspectionWorkApp\\Models\\TaskViewModel.cs",
-              "ViewState": "AgIAADoAAAAAAAAAAAAcwFsAAAAdAAAAAAAAAA==",
+              "ViewState": "AgIAAAcAAAAAAAAAAADgvxQAAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-24T11:44:21.06Z"
+              "WhenOpened": "2025-09-24T11:44:21.06Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 6,
+              "DocumentIndex": 10,
               "Title": "Execution.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\Execution.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\Execution.cs",
@@ -221,7 +241,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 15,
+              "DocumentIndex": 16,
               "Title": "Skud.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\Skud.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\Skud.cs",
@@ -233,7 +253,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 12,
+              "DocumentIndex": 14,
               "Title": "Role.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\Role.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\Role.cs",
@@ -245,31 +265,33 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 5,
+              "DocumentIndex": 6,
               "Title": "DataAccessLayer.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Interfaces\\DataAccessLayer.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Interfaces\\DataAccessLayer.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Interfaces\\DataAccessLayer.cs",
               "RelativeToolTip": "InspectionWorkApp\\Interfaces\\DataAccessLayer.cs",
-              "ViewState": "AgIAAIMAAAAAAAAAAADgv40AAAAIAAAAAAAAAA==",
+              "ViewState": "AgIAAJ0AAAAAAAAAAADgv6cAAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-24T11:00:20.73Z"
+              "WhenOpened": "2025-09-24T11:00:20.73Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 3,
               "Title": "DBContext.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\DBContext.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\DBContext.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\DBContext.cs",
               "RelativeToolTip": "InspectionWorkApp\\DBContext.cs",
-              "ViewState": "AgIAAAQAAAAAAAAAAAAAwA8AAAA6AAAAAAAAAA==",
+              "ViewState": "AgIAAAgAAAAAAAAAAAArwBIAAABYAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-23T12:49:18.902Z"
+              "WhenOpened": "2025-09-23T12:49:18.902Z",
+              "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 17,
+              "DocumentIndex": 18,
               "Title": "PCNameSector.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\Models\\PCNameSector.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\Models\\PCNameSector.cs",
@@ -281,26 +303,25 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 9,
               "Title": "GenerateAssignmentsJob.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\GenerateAssignmentsJob.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\GenerateAssignmentsJob.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\GenerateAssignmentsJob.cs",
               "RelativeToolTip": "InspectionWorkApp\\GenerateAssignmentsJob.cs",
-              "ViewState": "AgIAAAoAAAAAAAAAAAAxwBUAAABbAAAAAAAAAA==",
+              "ViewState": "AgIAAAsAAAAAAAAAAAAAADIAAABwAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-09-23T08:35:45.538Z",
-              "EditorCaption": ""
+              "WhenOpened": "2025-09-23T08:35:45.538Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "MainWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\MainWindow.xaml.cs",
               "RelativeDocumentMoniker": "InspectionWorkApp\\MainWindow.xaml.cs",
               "ToolTip": "C:\\Users\\z.maraktaev\\source\\repos\\InspectionWorkApp\\InspectionWorkApp\\MainWindow.xaml.cs",
               "RelativeToolTip": "InspectionWorkApp\\MainWindow.xaml.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAFEAAABKAAAAAAAAAA==",
+              "ViewState": "AgIAAOYCAAAAAAAAAAAYwAIDAAAqAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-09-15T12:13:08.839Z",
               "EditorCaption": ""

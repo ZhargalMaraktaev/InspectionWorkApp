@@ -26,5 +26,6 @@ namespace InspectionWorkApp.Models
         public string Position { get; set; }
         public int ErrorCode { get; set; }
         public string ErrorText { get; set; }
+        public int? TORoleId { get; set; } // Добавлено поле для TORoleId
     }
 }

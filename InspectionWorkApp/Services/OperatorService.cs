@@ -15,7 +15,7 @@ namespace InspectionWorkApp.Services
         private readonly ILogger<OperatorService> _logger;
         private Employee1CModel _currentOperator;
 
-        public event EventHandler OnOperatorChanged;
+        public event EventHandler<OperatorChangedEventArgs> OnOperatorChanged;
 
         public Employee1CModel CurrentOperator
         {
@@ -23,8 +23,9 @@ namespace InspectionWorkApp.Services
             private set
             {
                 _currentOperator = value;
-                _logger.LogInformation("CurrentOperator changed: {PersonnelNumber}", _currentOperator?.PersonnelNumber ?? "null");
-                OnOperatorChanged?.Invoke(this, EventArgs.Empty);
+                _logger.LogInformation("CurrentOperator changed: {PersonnelNumber}, TORoleId={TORoleId}",
+                    _currentOperator?.PersonnelNumber ?? "null", _currentOperator?.TORoleId);
+                OnOperatorChanged?.Invoke(this, new OperatorChangedEventArgs { Operator = _currentOperator });
             }
         }
 
@@ -104,8 +105,6 @@ namespace InspectionWorkApp.Services
                     return;
                 }
 
-                // Удалён вызов UpdateOperatorIdExchangeAsync, так как таблица Exchange не существует
-
                 DateTime? authFrom = isAuth ? authTime : null;
                 DateTime? authTo = isAuth ? null : authTime;
 
@@ -116,7 +115,8 @@ namespace InspectionWorkApp.Services
                 }
                 else
                 {
-                    _logger.LogInformation("Operator authenticated: {PersonnelNumber}", current.PersonnelNumber);
+                    _logger.LogInformation("Operator authenticated: {PersonnelNumber}, TORoleId={TORoleId}",
+                        current.PersonnelNumber, current.TORoleId);
                 }
             }
             catch (Exception ex)
@@ -162,7 +162,8 @@ namespace InspectionWorkApp.Services
                 if (employee.ErrorCode == 0 && !string.IsNullOrEmpty(employee.PersonnelNumber))
                 {
                     await _employeeRepository.SaveEmployeeAsync(employee);
-                    _logger.LogInformation("Employee fetched and saved from 1C: {PersonnelNumber}", employee.PersonnelNumber);
+                    _logger.LogInformation("Employee fetched and saved from 1C: {PersonnelNumber}, TORoleId={TORoleId}",
+                        employee.PersonnelNumber, employee.TORoleId);
                     return employee;
                 }
                 _logger.LogWarning("Failed to fetch employee from 1C for cardNumber: {CardNumber}", cardNumber);
@@ -173,6 +174,11 @@ namespace InspectionWorkApp.Services
                 _logger.LogError(ex, "Error in FetchAndSaveFrom1C for cardNumber: {CardNumber}", cardNumber);
                 return null;
             }
+        }
+
+        public class OperatorChangedEventArgs : EventArgs
+        {
+            public Employee1CModel Operator { get; set; }
         }
     }
 }
