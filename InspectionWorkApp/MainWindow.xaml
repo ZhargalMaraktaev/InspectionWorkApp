@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:converters="clr-namespace:InspectionWorkApp.Converters"
         Title="Техосмотр оборудования" Height="600" Width="1200"
+        WindowState="Maximized"
         Loaded="Window_Loaded"
         FontSize="16">
     <Window.Resources>
@@ -31,12 +32,14 @@
 
         <!-- Список задач с пагинацией -->
         <DataGrid x:Name="dgTasks" Grid.Row="2" AutoGenerateColumns="False" Margin="0,0,0,10"
-                  CanUserSortColumns="True" CanUserResizeColumns="True" SelectionMode="Single"
-                  ScrollViewer.CanContentScroll="True" ScrollViewer.VerticalScrollBarVisibility="Auto"
-                  IsReadOnly="False" FontSize="18" CanUserAddRows="False">
+          CanUserSortColumns="True" CanUserResizeColumns="True" SelectionMode="Single"
+          ScrollViewer.CanContentScroll="True" ScrollViewer.VerticalScrollBarVisibility="Auto"
+          IsReadOnly="False" FontSize="18" CanUserAddRows="False">
             <DataGrid.RowStyle>
                 <Style TargetType="DataGridRow">
-                    <Setter Property="MinHeight" Value="40"/>
+                    <Setter Property="Height" Value="130"/>
+                    <!-- Фиксированная высота строк -->
+                    <Setter Property="VerticalAlignment" Value="Top"/>
                 </Style>
             </DataGrid.RowStyle>
             <DataGrid.Columns>
@@ -45,6 +48,8 @@
                         <Style TargetType="TextBlock">
                             <Setter Property="Margin" Value="5,2"/>
                             <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                            <!-- Обрезаем длинный текст -->
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
@@ -53,7 +58,9 @@
                         <Style TargetType="TextBlock">
                             <Setter Property="TextWrapping" Value="Wrap"/>
                             <Setter Property="Margin" Value="5,2"/>
-                            <Setter Property="VerticalAlignment" Value="Top"/>
+                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="MaxHeight" Value="130"/>
+                            <!-- Ограничиваем высоту текста -->
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
@@ -63,6 +70,7 @@
                             <Setter Property="TextWrapping" Value="Wrap"/>
                             <Setter Property="Margin" Value="5,2"/>
                             <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="MaxHeight" Value="120"/>
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
@@ -72,6 +80,7 @@
                             <Setter Property="TextWrapping" Value="Wrap"/>
                             <Setter Property="Margin" Value="5,2"/>
                             <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="MaxHeight" Value="56"/>
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
@@ -81,14 +90,15 @@
                             <Setter Property="TextWrapping" Value="Wrap"/>
                             <Setter Property="Margin" Value="5,2"/>
                             <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="MaxHeight" Value="56"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding StatusName}" Value="Выполнена">
                                     <Setter Property="Foreground" Value="Green"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding StatusName}" Value="Отменена">
+                                <DataTrigger Binding="{Binding StatusName}" Value="Не выполнена">
                                     <Setter Property="Foreground" Value="Red"/>
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding StatusName}" Value="Не выполнена">
+                                <DataTrigger Binding="{Binding StatusName}" Value="Требуется выполнить!">
                                     <Setter Property="Foreground" Value="Black"/>
                                 </DataTrigger>
                             </Style.Triggers>
@@ -100,7 +110,8 @@
                         <Style TargetType="TextBlock">
                             <Setter Property="TextWrapping" Value="Wrap"/>
                             <Setter Property="Margin" Value="5,2"/>
-                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="VerticalAlignment" Value="Top"/>
+                            <Setter Property="MaxHeight" Value="120"/>
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                     <DataGridTextColumn.EditingElementStyle>
@@ -108,17 +119,28 @@
                             <Setter Property="TextWrapping" Value="Wrap"/>
                             <Setter Property="AcceptsReturn" Value="True"/>
                             <Setter Property="AcceptsTab" Value="True"/>
-                            <Setter Property="VerticalAlignment" Value="Center"/>
+                            <Setter Property="VerticalAlignment" Value="Top"/>
+                            <Setter Property="MaxHeight" Value="56"/>
                         </Style>
                     </DataGridTextColumn.EditingElementStyle>
                 </DataGridTextColumn>
-                <DataGridTemplateColumn Header="Действия" Width="200">
+                <DataGridTemplateColumn Header="Действия" Width="250">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
-                            <StackPanel Orientation="Horizontal">
-                                <Button Content="Выполнена" Margin="5,0" Click="BtnMarkCompletedPerTask_Click" Tag="{Binding Id}" IsEnabled="{Binding IsUnprocessed}"/>
-                                <Button Content="Отменена" Margin="5,0" Click="BtnCancelTaskPerTask_Click" Tag="{Binding Id}" IsEnabled="{Binding IsUnprocessed}"/>
-                            </StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="5" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="Выполнена" Margin="5,5" Height="40" Background="Green" Foreground="White" 
+                                        Click="BtnMarkCompletedPerTask_Click" Tag="{Binding Id}" IsEnabled="{Binding IsUnprocessed}"
+                                        FontSize="16" VerticalContentAlignment="Center" />
+                                <Rectangle Grid.Column="1" Width="2" Fill="Gray" Margin="0,5" VerticalAlignment="Stretch" />
+                                <Button Grid.Column="2" Content="Не выполнена" Margin="5,5" Height="40" Background="Red" Foreground="White" 
+                                        Click="BtnCancelTaskPerTask_Click" Tag="{Binding Id}" IsEnabled="{Binding IsUnprocessed}"
+                                        FontSize="16" VerticalContentAlignment="Center" />
+                            </Grid>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>

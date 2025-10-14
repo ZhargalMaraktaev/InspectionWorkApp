@@ -394,5 +394,16 @@ namespace InspectionWorkApp
         {
             Close();
         }
+        private void BtnOpenReports_Click(object sender, RoutedEventArgs e)
+        {
+            if (_operatorService.CurrentOperator == null)
+            {
+                MessageBox.Show("Авторизуйтесь, считав карту!");
+                return;
+            }
+
+            var reportWindow = new ReportWindow(_db);
+            reportWindow.ShowDialog();
+        }
     }
 }

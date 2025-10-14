@@ -15,6 +15,7 @@ namespace InspectionWorkApp
         public DbSet<WorkAssignment> TOWorkAssignments { get; set; }
         public DbSet<Execution> TOExecutions { get; set; }
         public DbSet<PCNameSector> dic_PCNameSector { get; set; }
+        public DbSet<TOFailureReason> TOFailureReasons { get; set; }
 
         public YourDbContext(DbContextOptions<YourDbContext> options) : base(options) { }
 
@@ -30,6 +31,7 @@ namespace InspectionWorkApp
             modelBuilder.Entity<WorkAssignment>().ToTable("TOWorkAssignments", "dbo");
             modelBuilder.Entity<Execution>().ToTable("TOExecutions", "dbo");
             modelBuilder.Entity<PCNameSector>().ToTable("dic_PCNameSector", "dbo");
+            modelBuilder.Entity<TOFailureReason>().ToTable("TOFailureReasons", "dbo");
 
             modelBuilder.Entity<WorkAssignment>()
                 .HasOne(wa => wa.Work)
@@ -115,6 +117,10 @@ namespace InspectionWorkApp
                 .Property(e => e.Comment)
                 .HasColumnType("nvarchar(max)")
                 .IsRequired(false); // Поле Comment не обязательно (NULL)
+            modelBuilder.Entity<TOFailureReason>()
+                .Property(fr => fr.ReasonText)
+                .HasColumnType("nvarchar(255)")
+                .IsRequired();
         }
     }
 }

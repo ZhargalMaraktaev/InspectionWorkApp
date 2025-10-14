@@ -5,6 +5,7 @@ using InspectionWorkApp.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -13,8 +14,10 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
+using System.Windows.Input;
+using System.Runtime.InteropServices; // Для P/Invoke
+using System.Windows.Interop; // Для работы с окнами и хуками
 using System.Windows.Media.Animation;
-using System.Collections.Generic;
 
 namespace InspectionWorkApp
 {
@@ -39,6 +42,7 @@ namespace InspectionWorkApp
         private const int _pageSize = 6; // 6 элементов на страницу
         private bool _isAdminRole; // Свойство для управления доступностью селекторов
         private readonly ILoggerFactory _loggerFactory;
+        private IntPtr _keyboardHookId = IntPtr.Zero; // Для хука клавиатуры
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -83,11 +87,17 @@ namespace InspectionWorkApp
         {
             try
             {
+                // Устанавливаем хук клавиатуры для не-администраторов
+                if (_currentRoleId != 4)
+                {
+                    SetKeyboardHook();
+                    HideTaskbar();
+                }
                 _currentSectorId = await GetCurrentSectorIdAsync();
                 _logger.LogInformation("Set _currentSectorId to {SectorId} from GetCurrentSectorIdAsync", _currentSectorId.HasValue ? _currentSectorId.Value.ToString() : "null");
                 await LoadCombosAsync();
                 await LoadTasksAsync();
-
+                UpdateWindowStyleAndRestrictions();
                 // Установка начального состояния кнопки btnOpenAdmin
                 if (_operatorService.CurrentOperator != null)
                 {
@@ -177,7 +187,137 @@ namespace InspectionWorkApp
                 }
             }
         }
+        private void UpdateWindowStyleAndRestrictions()
+        {
+            if (_currentRoleId == 4) // Администратор
+            {
+                WindowStyle = WindowStyle.SingleBorderWindow;
+                UnsetKeyboardHook(); // Убираем хук для админа
+                ShowTaskbar(); // Показываем панель задач
+                _logger.LogInformation("Set WindowStyle to SingleBorderWindow for Admin (RoleId=4)");
+            }
+            else // Оператор или слесарь
+            {
+                WindowStyle = WindowStyle.None;
+                SetKeyboardHook(); // Устанавливаем хук
+                HideTaskbar(); // Скрываем панель задач
+                _logger.LogInformation("Set WindowStyle to None for non-Admin (RoleId={RoleId})", _currentRoleId);
+            }
+        }
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            // Убираем хук при закрытии приложения
+            UnsetKeyboardHook();
+            ShowTaskbar(); // Восстанавливаем панель задач
+            base.OnClosing(e);
+        }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            base.OnKeyDown(e);
+            if (e.Key == Key.Escape && _currentRoleId != 4)
+            {
+                _logger.LogInformation("Escape key pressed, closing application.");
+                Close();
+            }
+            if (e.Key == Key.System && e.SystemKey == Key.F4 && _currentRoleId != 4)
+            {
+                _logger.LogInformation("Alt+F4 blocked for non-admin role.");
+                e.Handled = true; // Блокируем Alt+F4
+            }
+        }
 
+        #region Keyboard Hook and Taskbar Management
+        // Windows API для хука клавиатуры
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_SYSKEYDOWN = 0x0104;
+        private static LowLevelKeyboardProc _proc = HookCallback;
+        private static IntPtr _hookID = IntPtr.Zero;
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        private const int SW_HIDE = 0;
+        private const int SW_SHOW = 5;
+
+        private delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        private void SetKeyboardHook()
+        {
+            if (_keyboardHookId == IntPtr.Zero)
+            {
+                using (var curProcess = System.Diagnostics.Process.GetCurrentProcess())
+                using (var curModule = curProcess.MainModule)
+                {
+                    _keyboardHookId = SetWindowsHookEx(WH_KEYBOARD_LL, _proc, GetModuleHandle(curModule.ModuleName), 0);
+                    _logger.LogInformation("Keyboard hook set: {HookId}", _keyboardHookId);
+                }
+            }
+        }
+
+        private void UnsetKeyboardHook()
+        {
+            if (_keyboardHookId != IntPtr.Zero)
+            {
+                UnhookWindowsHookEx(_keyboardHookId);
+                _keyboardHookId = IntPtr.Zero;
+                _logger.LogInformation("Keyboard hook unset");
+            }
+        }
+
+        private static IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+                // Блокируем клавишу Windows, Alt+Tab, Ctrl+Shift+Esc, Win+D
+                if (vkCode == 0x5B || vkCode == 0x5C || // Left/Right Windows Key
+                    (vkCode == 0x09 && (Keyboard.Modifiers & ModifierKeys.Alt) != 0) || // Alt+Tab
+                    (vkCode == 0x1B && (Keyboard.Modifiers & ModifierKeys.Control) != 0 && (Keyboard.Modifiers & ModifierKeys.Shift) != 0) || // Ctrl+Shift+Esc
+                    (vkCode == 0x44 && (Keyboard.Modifiers & ModifierKeys.Windows) != 0)) // Win+D
+                {
+                    return (IntPtr)1; // Блокируем событие
+                }
+            }
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        private void HideTaskbar()
+        {
+            IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
+            if (taskbar != IntPtr.Zero)
+            {
+                ShowWindow(taskbar, SW_HIDE);
+                _logger.LogInformation("Taskbar hidden");
+            }
+        }
+
+        private void ShowTaskbar()
+        {
+            IntPtr taskbar = FindWindow("Shell_TrayWnd", null);
+            if (taskbar != IntPtr.Zero)
+            {
+                ShowWindow(taskbar, SW_SHOW);
+                _logger.LogInformation("Taskbar shown");
+            }
+        }
+        #endregion
         private async void OperatorService_OnOperatorChanged(object sender, EventArgs e)
         {
             _logger.LogInformation("OperatorService_OnOperatorChanged started, ThreadId={ThreadId}, PersonnelNumber={PersonnelNumber}",
@@ -210,7 +350,7 @@ namespace InspectionWorkApp
                             txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Green;
                             btnOpenAdmin.IsEnabled = _currentRoleId == 4; // Активна только для администратора
                             IsAdminRole = _currentRoleId == 4;
-
+                            UpdateWindowStyleAndRestrictions();
                             if (skudRecord?.TORoleId != null)
                             {
                                 var roles = cmbRole.ItemsSource as List<Role>;
@@ -246,6 +386,7 @@ namespace InspectionWorkApp
                             _currentRoleId = null;
                             cmbRole.SelectedItem = null;
                             IsAdminRole = false;
+                            UpdateWindowStyleAndRestrictions();
                             _logger.LogInformation("Operator deauthenticated, btnOpenAdmin.IsEnabled set to False");
                         });
                     }
@@ -466,7 +607,7 @@ namespace InspectionWorkApp
 
                         if ((freq.Id == 1 || nextDue <= now) && execution == null)
                         {
-                            var statusName = "Не выполнена";
+                            var statusName = "Требуется выполнить!";
 
                             tasks.Add(new TaskViewModel(taskViewModelLogger)
                             {
@@ -492,6 +633,11 @@ namespace InspectionWorkApp
                     await Dispatcher.InvokeAsync(() =>
                     {
                         _allTasks = tasks;
+                        if (_allTasks.Count == 0 && _operatorService.CurrentOperator != null)
+                        {
+                            _logger.LogInformation("All tasks completed for current shift, showing CompletionDialog");
+                            
+                        }
                         UpdatePagedTasks();
                         if (dgTasks.ItemsSource == null)
                         {
@@ -575,8 +721,24 @@ namespace InspectionWorkApp
             var task = button.DataContext as TaskViewModel;
             if (task != null)
             {
-                _logger.LogInformation("Canceling task: AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, task.Comment ?? "null");
-                await CancelTaskAsync(assignmentId, task.Comment);
+                _logger.LogInformation("Opening FailureReasonWindow for task: AssignmentId={AssignmentId}", assignmentId);
+
+                var failureReasonWindow = new FailureReasonWindow(_dbFactory);
+                failureReasonWindow.Owner = this;
+                bool? result = failureReasonWindow.ShowDialog();
+
+                if (result == true && !string.IsNullOrEmpty(failureReasonWindow.SelectedReason))
+                {
+                    string comment = task.Comment != null
+                        ? $"{failureReasonWindow.SelectedReason}{task.Comment}"
+                        : $"{failureReasonWindow.SelectedReason}";
+                    _logger.LogInformation("Selected reason for task cancellation: AssignmentId={AssignmentId}, Reason={Reason}, FullComment={Comment}", assignmentId, failureReasonWindow.SelectedReason, comment);
+                    await CancelTaskAsync(assignmentId, comment);
+                }
+                else
+                {
+                    _logger.LogInformation("Task cancellation aborted: AssignmentId={AssignmentId}, Reason=User cancelled or no reason selected", assignmentId);
+                }
             }
             else
             {
@@ -652,7 +814,7 @@ namespace InspectionWorkApp
 
                             _logger.LogInformation("Task marked as completed for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
                             await LoadTasksAsync();
-                            MessageBox.Show("Задача отмечена как выполненная!");
+                            //MessageBox.Show("Задача отмечена как выполненная!");
                             
                         }
                         catch (Exception ex)
@@ -720,7 +882,7 @@ namespace InspectionWorkApp
                                 ExecutionTime = now,
                                 Status = 2,
                                 DueDateTime = shiftStart,
-                                Comment = comment // Сохраняем комментарий
+                                Comment = comment // Сохраняем комментарий (причина + существующий комментарий)
                             };
                             db.TOExecutions.Add(execution);
 
@@ -737,7 +899,7 @@ namespace InspectionWorkApp
 
                             _logger.LogInformation("Task canceled for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
                             await LoadTasksAsync();
-                            MessageBox.Show("Задача отменена!");
+                            //MessageBox.Show("Задача не выполнена!");
                         }
                         catch (Exception ex)
                         {

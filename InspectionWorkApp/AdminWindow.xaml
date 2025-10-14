@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <!-- Статус оператора -->
         <StackPanel Grid.Row="0" Orientation="Vertical" Margin="10,15,0,10">
@@ -78,8 +79,9 @@
 
         <!-- Кнопка для удаления назначений -->
         <Button Grid.Row="5" x:Name="btnDeleteAssignments" Content="Удалить все назначения" Width="150" Click="BtnDeleteAssignments_Click" Margin="0,0,0,10"/>
+        <Button Grid.Row="6" x:Name="btnOpenReports" Content="Просмотр отчетов" Width="150" Click="BtnOpenReports_Click" Margin="0,0,0,10"/>
 
         <!-- Кнопка закрытия -->
-        <Button Grid.Row="6" x:Name="btnClose" Content="Закрыть" Width="150" Click="BtnClose_Click"/>
+        <Button Grid.Row="7" x:Name="btnClose" Content="Закрыть" Width="150" Click="BtnClose_Click"/>
     </Grid>
 </Window>
