@@ -36,7 +36,15 @@ namespace InspectionWorkApp
 
             // Регистрация DbContext
             services.AddDbContextFactory<YourDbContext>(options =>
-                options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(
+        configuration.GetConnectionString("DefaultConnection"),
+        sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+            maxRetryCount: 5, // Максимальное количество попыток
+            maxRetryDelay: TimeSpan.FromSeconds(10), // Максимальная задержка между попытками
+            errorNumbersToAdd: null // Дополнительные коды ошибок SQL Server, если нужно
+        )
+    )
+);
 
             // Регистрация логирования
             services.AddLogging(builder =>

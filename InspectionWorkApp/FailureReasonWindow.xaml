@@ -1,7 +1,7 @@
 ﻿<Window x:Class="InspectionWorkApp.FailureReasonWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Выбор причины невыполнения" Height="300" Width="400"
+        Title="Выбор причины невыполнения" Height="400" Width="600"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
     <Grid Margin="10">
         <Grid.RowDefinitions>
@@ -9,19 +9,15 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Список причин -->
-        <ListBox x:Name="lstReasons" Grid.Row="0" Margin="0,0,0,10"
-                 SelectionMode="Single" FontSize="14">
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <TextBlock Text="{Binding ReasonText}" TextWrapping="Wrap" />
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
+        <!-- Список причин в виде кнопок -->
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Margin="0,0,0,10">
+            <WrapPanel x:Name="wrapReasons" Orientation="Vertical" MaxHeight="300">
+                <!-- Кнопки будут добавлены динамически в коде -->
+            </WrapPanel>
+        </ScrollViewer>
 
-        <!-- Кнопки -->
+        <!-- Кнопка отмены -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button x:Name="btnSelect" Content="Выбрать" Width="100" Margin="0,0,10,0" Click="BtnSelect_Click" />
             <Button x:Name="btnCancel" Content="Отмена" Width="100" Click="BtnCancel_Click" />
         </StackPanel>
     </Grid>

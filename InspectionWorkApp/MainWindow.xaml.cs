@@ -9,15 +9,17 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.InteropServices; // Для P/Invoke
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
-using System.Runtime.InteropServices; // Для P/Invoke
 using System.Windows.Interop; // Для работы с окнами и хуками
+using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 
 namespace InspectionWorkApp
 {
@@ -43,6 +45,10 @@ namespace InspectionWorkApp
         private bool _isAdminRole; // Свойство для управления доступностью селекторов
         private readonly ILoggerFactory _loggerFactory;
         private IntPtr _keyboardHookId = IntPtr.Zero; // Для хука клавиатуры
+        private readonly DispatcherTimer _dbStatusTimer; // Таймер для проверки соединения
+        private bool _isDatabaseConnected; // Для отслеживания состояния
+        private string _databaseStatusText; // Для текста статуса
+        private Brush _databaseStatusColor; // Для цвета текста
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -56,7 +62,25 @@ namespace InspectionWorkApp
             }
         }
 
+        public string DatabaseStatusText
+        {
+            get => _databaseStatusText;
+            set
+            {
+                _databaseStatusText = value;
+                NotifyPropertyChanged(nameof(DatabaseStatusText));
+            }
+        }
 
+        public Brush DatabaseStatusColor
+        {
+            get => _databaseStatusColor;
+            set
+            {
+                _databaseStatusColor = value;
+                NotifyPropertyChanged(nameof(DatabaseStatusColor));
+            }
+        }
         public MainWindow(IDbContextFactory<YourDbContext> dbFactory, OperatorService operatorService, COMController comController, ILogger<MainWindow> logger, ILoggerFactory loggerFactory)
         {
             InitializeComponent();
@@ -69,6 +93,15 @@ namespace InspectionWorkApp
             _comController.StateChanged += ComController_StateChanged;
             _loggerFactory = loggerFactory;
             _logger = loggerFactory.CreateLogger<MainWindow>();
+
+            // Инициализация таймера
+            _dbStatusTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1) // Проверка каждые 10 секунд
+            };
+            _dbStatusTimer.Tick += async (s, e) => await CheckDatabaseConnectionAsync();
+            txtDatabaseStatus.Text = "Проверяется...";
+            txtOperatorStatus.Foreground = Brushes.Red;
 
             // Установить DataContext для привязки
             DataContext = this;
@@ -98,6 +131,11 @@ namespace InspectionWorkApp
                 await LoadCombosAsync();
                 await LoadTasksAsync();
                 UpdateWindowStyleAndRestrictions();
+
+                // Начать проверку соединения
+                _dbStatusTimer.Start();
+                await CheckDatabaseConnectionAsync(); // Первая проверка при загрузке
+
                 // Установка начального состояния кнопки btnOpenAdmin
                 if (_operatorService.CurrentOperator != null)
                 {
@@ -114,6 +152,7 @@ namespace InspectionWorkApp
                         await Dispatcher.InvokeAsync(() =>
                         {
                             btnOpenAdmin.IsEnabled = _currentRoleId == 4; // Активна только для администратора
+                            btnOpenReports.IsEnabled = _currentRoleId == 4; // Активна для администратора
                             IsAdminRole = _currentRoleId == 4;
                             _logger.LogInformation("Initial btnOpenAdmin.IsEnabled set to {IsEnabled} for RoleId: {RoleId}", btnOpenAdmin.IsEnabled, _currentRoleId);
                         });
@@ -124,6 +163,48 @@ namespace InspectionWorkApp
             {
                 _logger.LogError(ex, "Error in Window_Loaded");
                 MessageBox.Show($"Ошибка при инициализации окна: {ex.Message}");
+            }
+        }
+
+        private async Task CheckDatabaseConnectionAsync()
+        {
+            try
+            {
+                using (var db = _dbFactory.CreateDbContext())
+                {
+                    bool isConnected = await db.Database.CanConnectAsync();
+                    if (isConnected && !_isDatabaseConnected)
+                    {
+                        _isDatabaseConnected = true;
+                        txtDatabaseStatus.Text = "Подключено";
+                        txtDatabaseStatus.Foreground = Brushes.Green;
+                        _logger.LogInformation("Database connection restored.");
+                    }
+                    else if (!isConnected && _isDatabaseConnected)
+                    {
+                        _isDatabaseConnected = false;
+                        txtDatabaseStatus.Text = "Разорвано";
+                        txtDatabaseStatus.Foreground = Brushes.Red;
+                        _logger.LogWarning("Database connection lost.");
+                    }
+                    else if (!isConnected)
+                    {
+                        txtDatabaseStatus.Text = "Разорвано";
+                        txtDatabaseStatus.Foreground = Brushes.Red;
+                    }
+                    else
+                    {
+                        txtDatabaseStatus.Text = "Подключено";
+                        txtDatabaseStatus.Foreground = Brushes.Green;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _isDatabaseConnected = false;
+                txtDatabaseStatus.Text = "Разорвано";
+                txtDatabaseStatus.Foreground = Brushes.Red;
+                _logger.LogError(ex, "Error checking database connection.");
             }
         }
 
@@ -349,6 +430,7 @@ namespace InspectionWorkApp
                             txtOperatorStatus.Text = $"Авторизован: {_operatorService.CurrentOperator.FullName} ({_operatorService.CurrentOperator.PersonnelNumber})";
                             txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Green;
                             btnOpenAdmin.IsEnabled = _currentRoleId == 4; // Активна только для администратора
+                            btnOpenReports.IsEnabled = _currentRoleId == 4; // Активна для администратора
                             IsAdminRole = _currentRoleId == 4;
                             UpdateWindowStyleAndRestrictions();
                             if (skudRecord?.TORoleId != null)
@@ -383,6 +465,7 @@ namespace InspectionWorkApp
                             txtOperatorStatus.Text = "Не авторизован";
                             txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Red;
                             btnOpenAdmin.IsEnabled = false;
+                            btnOpenReports.IsEnabled = false;
                             _currentRoleId = null;
                             cmbRole.SelectedItem = null;
                             IsAdminRole = false;
@@ -526,6 +609,24 @@ namespace InspectionWorkApp
             {
                 using (var db = _dbFactory.CreateDbContext())
                 {
+                    // Если RoleId = 4 (администратор), отображаем пустой список задач
+                    if (_currentRoleId == 4)
+                    {
+                        _logger.LogInformation("Нет задач для администратора (RoleId=4)");
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            _allTasks = new List<TaskViewModel>();
+                            UpdatePagedTasks();
+                            if (dgTasks.ItemsSource == null)
+                            {
+                                dgTasks.ItemsSource = _tasksCollection;
+                            }
+                            _logger.LogInformation("Отображено 0 задач для RoleId=4");
+                        });
+                        return;
+                    }
+
+                    // Фильтрация задач для RoleId=1 или RoleId=2
                     var now = DateTime.Now;
                     var today = now.Date;
                     DateTime shiftStart;
@@ -550,26 +651,37 @@ namespace InspectionWorkApp
                         .Include(a => a.Freq)
                         .Where(a => !a.IsCanceled);
 
-                    if (_currentRoleId.HasValue && _currentRoleId != 4)
+                    if (_currentRoleId.HasValue && (_currentRoleId == 1 || _currentRoleId == 2))
                     {
                         assignmentsQuery = assignmentsQuery.Where(a => a.RoleId == _currentRoleId.Value);
-                        _logger.LogInformation("Filtering tasks by RoleId: {RoleId}", _currentRoleId.Value);
+                        _logger.LogInformation("Фильтрация задач по RoleId: {RoleId}", _currentRoleId.Value);
                     }
-                    else if (_currentRoleId == 4)
+                    else
                     {
-                        _logger.LogInformation("No RoleId filter applied for Administrator (RoleId=4)");
+                        // Если RoleId отсутствует или недопустим, отображаем пустой список
+                        _logger.LogInformation("Нет задач из-за отсутствия или недопустимого RoleId: {RoleId}", _currentRoleId);
+                        await Dispatcher.InvokeAsync(() =>
+                        {
+                            _allTasks = new List<TaskViewModel>();
+                            UpdatePagedTasks();
+                            if (dgTasks.ItemsSource == null)
+                            {
+                                dgTasks.ItemsSource = _tasksCollection;
+                            }
+                            _logger.LogInformation("Отображено 0 задач из-за недопустимого RoleId");
+                        });
+                        return;
                     }
 
                     if (_currentSectorId.HasValue)
                     {
                         assignmentsQuery = assignmentsQuery.Where(a => a.SectorId == _currentSectorId.Value);
-                        _logger.LogInformation("Filtering tasks by SectorId: {SectorId}", _currentSectorId.Value);
+                        _logger.LogInformation("Фильтрация задач по SectorId: {SectorId}", _currentSectorId.Value);
                     }
 
                     var assignments = await assignmentsQuery.ToListAsync().ConfigureAwait(false);
                     var tasks = new List<TaskViewModel>();
 
-                    // Создаем логгер для TaskViewModel
                     var taskViewModelLogger = _loggerFactory.CreateLogger<TaskViewModel>();
 
                     foreach (var a in assignments)
@@ -636,7 +748,6 @@ namespace InspectionWorkApp
                         if (_allTasks.Count == 0 && _operatorService.CurrentOperator != null)
                         {
                             _logger.LogInformation("All tasks completed for current shift, showing CompletionDialog");
-                            
                         }
                         UpdatePagedTasks();
                         if (dgTasks.ItemsSource == null)
@@ -786,44 +897,49 @@ namespace InspectionWorkApp
                         return;
                     }
 
-                    using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
+                    // Используем стратегию выполнения для транзакции
+                    var strategy = db.Database.CreateExecutionStrategy();
+                    await strategy.ExecuteAsync(async () =>
                     {
-                        try
+                        using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
                         {
-                            var execution = new Execution
+                            try
                             {
-                                AssignmentId = assignmentId,
-                                OperatorId = operatorId,
-                                ExecutionTime = now,
-                                Status = 1,
-                                DueDateTime = shiftStart,
-                                Comment = comment // Сохраняем комментарий
-                            };
-                            db.TOExecutions.Add(execution);
+                                var execution = new Execution
+                                {
+                                    AssignmentId = assignmentId,
+                                    OperatorId = operatorId,
+                                    ExecutionTime = now,
+                                    Status = 1,
+                                    DueDateTime = shiftStart,
+                                    Comment = comment
+                                };
+                                db.TOExecutions.Add(execution);
 
-                            var assignment = await db.TOWorkAssignments
-                                .FirstOrDefaultAsync(a => a.Id == assignmentId)
-                                .ConfigureAwait(false);
-                            if (assignment != null)
-                            {
-                                assignment.LastExecTime = shiftStart;
+                                var assignment = await db.TOWorkAssignments
+                                    .FirstOrDefaultAsync(a => a.Id == assignmentId)
+                                    .ConfigureAwait(false);
+                                if (assignment != null)
+                                {
+                                    assignment.LastExecTime = shiftStart;
+                                }
+
+                                await db.SaveChangesAsync().ConfigureAwait(false);
+                                await transaction.CommitAsync().ConfigureAwait(false);
+
+                                _logger.LogInformation("Task marked as completed for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
                             }
-
-                            await db.SaveChangesAsync().ConfigureAwait(false);
-                            await transaction.CommitAsync().ConfigureAwait(false);
-
-                            _logger.LogInformation("Task marked as completed for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
-                            await LoadTasksAsync();
-                            //MessageBox.Show("Задача отмечена как выполненная!");
-                            
+                            catch (Exception ex)
+                            {
+                                await transaction.RollbackAsync().ConfigureAwait(false);
+                                _logger.LogError(ex, "Error marking task completed for AssignmentId={AssignmentId}", assignmentId);
+                                MessageBox.Show($"Ошибка: {ex.Message}");
+                                throw; // Важно пробросить исключение, чтобы strategy могла повторить попытку
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            await transaction.RollbackAsync().ConfigureAwait(false);
-                            _logger.LogError(ex, "Error marking task completed for AssignmentId={AssignmentId}", assignmentId);
-                            MessageBox.Show($"Ошибка: {ex.Message}");
-                        }
-                    }
+                    });
+
+                    await LoadTasksAsync();
                 }
             }
             finally
@@ -871,43 +987,51 @@ namespace InspectionWorkApp
                         return;
                     }
 
-                    using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
+                    // Используем стратегию выполнения для транзакции
+                    var strategy = db.Database.CreateExecutionStrategy();
+                    await strategy.ExecuteAsync(async () =>
                     {
-                        try
+                        using (var transaction = await db.Database.BeginTransactionAsync().ConfigureAwait(false))
                         {
-                            var execution = new Execution
+                            try
                             {
-                                AssignmentId = assignmentId,
-                                OperatorId = operatorId,
-                                ExecutionTime = now,
-                                Status = 2,
-                                DueDateTime = shiftStart,
-                                Comment = comment // Сохраняем комментарий (причина + существующий комментарий)
-                            };
-                            db.TOExecutions.Add(execution);
+                                var execution = new Execution
+                                {
+                                    AssignmentId = assignmentId,
+                                    OperatorId = operatorId,
+                                    ExecutionTime = now,
+                                    Status = 2,
+                                    DueDateTime = shiftStart,
+                                    Comment = comment
+                                };
+                                db.TOExecutions.Add(execution);
 
-                            var assignment = await db.TOWorkAssignments
-                                .FirstOrDefaultAsync(a => a.Id == assignmentId)
-                                .ConfigureAwait(false);
-                            if (assignment != null)
-                            {
-                                assignment.LastExecTime = shiftStart;
+                                var assignment = await db.TOWorkAssignments
+                                    .FirstOrDefaultAsync(a => a.Id == assignmentId)
+                                    .ConfigureAwait(false);
+                                if (assignment != null)
+                                {
+                                    assignment.LastExecTime = shiftStart;
+                                }
+
+                                await db.SaveChangesAsync().ConfigureAwait(false);
+                                await transaction.CommitAsync().ConfigureAwait(false);
+
+                                _logger.LogInformation("Task canceled for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
+
+
+
+                                await LoadTasksAsync();
                             }
-
-                            await db.SaveChangesAsync().ConfigureAwait(false);
-                            await transaction.CommitAsync().ConfigureAwait(false);
-
-                            _logger.LogInformation("Task canceled for AssignmentId={AssignmentId}, Comment={Comment}", assignmentId, comment ?? "null");
-                            await LoadTasksAsync();
-                            //MessageBox.Show("Задача не выполнена!");
+                            catch (Exception ex)
+                            {
+                                await transaction.RollbackAsync().ConfigureAwait(false);
+                                _logger.LogError(ex, "Error canceling task for AssignmentId={AssignmentId}", assignmentId);
+                                MessageBox.Show($"Ошибка: {ex.Message}");
+                                throw; // Пробрасываем исключение для retry
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            await transaction.RollbackAsync().ConfigureAwait(false);
-                            _logger.LogError(ex, "Error canceling task for AssignmentId={AssignmentId}", assignmentId);
-                            MessageBox.Show($"Ошибка: {ex.Message}");
-                        }
-                    }
+                    });
                 }
             }
             finally
@@ -944,6 +1068,19 @@ namespace InspectionWorkApp
                 {
                     _logger.LogInformation("Lock released in BtnOpenAdmin_Click");
                 }
+            }
+        }
+        private void BtnOpenReports_Click(object sender, RoutedEventArgs e)
+        {
+            if (_operatorService.CurrentOperator == null)
+            {
+                MessageBox.Show("Авторизуйтесь, считав карту!");
+                return;
+            }
+            using (var db = _dbFactory.CreateDbContext())
+            {
+                var reportWindow = new ReportWindow(db);
+                reportWindow.ShowDialog();
             }
         }
     }

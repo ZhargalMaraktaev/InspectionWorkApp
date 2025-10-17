@@ -8,6 +8,7 @@
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -15,7 +16,7 @@
         <!-- Фильтры -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="Дата:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-            <DatePicker x:Name="dpDate" Width="150" Margin="0,0,10,0"/>
+            <DatePicker x:Name="dpDate" Width="150" Margin="0,0,10,0" SelectedDateChanged="DpDate_SelectedDateChanged"/>
             <TextBlock Text="Оборудование (Сектор):" VerticalAlignment="Center" Margin="0,0,5,0"/>
             <ComboBox x:Name="cmbSector" Width="200" DisplayMemberPath="SectorName" Margin="0,0,10,0"/>
             <TextBlock Text="Смена:" VerticalAlignment="Center" Margin="0,0,5,0"/>
@@ -28,8 +29,11 @@
             <Button x:Name="btnReset" Content="Сбросить" Width="100" Click="BtnReset_Click"/>
         </StackPanel>
 
+        <!-- Сообщение об ошибке -->
+        <TextBlock x:Name="txtDateError" Grid.Row="1" Foreground="Red" Margin="0,0,0,10" Visibility="Collapsed"/>
+
         <!-- Список работ -->
-        <DataGrid x:Name="dgReports" Grid.Row="1" AutoGenerateColumns="False" Margin="0,0,0,10"
+        <DataGrid x:Name="dgReports" Grid.Row="2" AutoGenerateColumns="False" Margin="0,0,0,10"
                   CanUserSortColumns="True" CanUserResizeColumns="True" SelectionMode="Single"
                   ScrollViewer.CanContentScroll="True" ScrollViewer.VerticalScrollBarVisibility="Auto"
                   IsReadOnly="True" FontSize="18">
@@ -49,8 +53,7 @@
                 </Style>
             </DataGrid.RowStyle>
             <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
-                <DataGridTextColumn Header="Работа" Binding="{Binding WorkName}" Width="250">
+                <DataGridTextColumn Header="Работа" Binding="{Binding WorkName}" Width="*">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -67,7 +70,13 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Оператор" Binding="{Binding OperatorName}" Width="200"/>
+                <DataGridTextColumn Header="Оператор" Binding="{Binding OperatorName}" Width="200">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="TextWrapping" Value="Wrap"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Комментарий" Binding="{Binding Comment}" Width="*">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
@@ -79,6 +88,6 @@
         </DataGrid>
 
         <!-- Кнопка закрытия -->
-        <Button Grid.Row="2" x:Name="btnClose" Content="Закрыть" Width="100" Click="BtnClose_Click" HorizontalAlignment="Right"/>
+        <Button Grid.Row="3" x:Name="btnClose" Content="Закрыть" Width="100" Click="BtnClose_Click" HorizontalAlignment="Right"/>
     </Grid>
 </Window>

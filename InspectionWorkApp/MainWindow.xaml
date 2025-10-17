@@ -22,6 +22,8 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="Статус оператора: " FontWeight="Bold"/>
             <TextBlock x:Name="txtOperatorStatus" Text="Не авторизован" Margin="5,0,0,0" Foreground="Red"/>
+            <TextBlock Text="Статус БД: " FontWeight="Bold" Margin="10,0,0,0" HorizontalAlignment="Right"/>
+            <TextBlock x:Name="txtDatabaseStatus" Text="Проверяется..." Margin="5,0,0,0" Foreground="Orange" HorizontalAlignment="Right"/>
         </StackPanel>
 
         <!-- Фильтры -->
@@ -43,17 +45,8 @@
                 </Style>
             </DataGrid.RowStyle>
             <DataGrid.Columns>
-                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50" IsReadOnly="True">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Margin" Value="5,2"/>
-                            <Setter Property="VerticalAlignment" Value="Center"/>
-                            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                            <!-- Обрезаем длинный текст -->
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Работа" Binding="{Binding WorkName}" Width="250" IsReadOnly="True">
+
+                <DataGridTextColumn Header="Работа" Binding="{Binding WorkName}" Width="*" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -64,7 +57,7 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Тип" Binding="{Binding WorkType}" Width="225" IsReadOnly="True">
+                <DataGridTextColumn Header="Тип" Binding="{Binding WorkType}" Width="*" IsReadOnly="True">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
                             <Setter Property="TextWrapping" Value="Wrap"/>
@@ -105,25 +98,6 @@
                         </Style>
                     </DataGridTextColumn.ElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Комментарий" Binding="{Binding Comment, UpdateSourceTrigger=PropertyChanged}" Width="*" IsReadOnly="False">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="TextWrapping" Value="Wrap"/>
-                            <Setter Property="Margin" Value="5,2"/>
-                            <Setter Property="VerticalAlignment" Value="Top"/>
-                            <Setter Property="MaxHeight" Value="120"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                    <DataGridTextColumn.EditingElementStyle>
-                        <Style TargetType="TextBox">
-                            <Setter Property="TextWrapping" Value="Wrap"/>
-                            <Setter Property="AcceptsReturn" Value="True"/>
-                            <Setter Property="AcceptsTab" Value="True"/>
-                            <Setter Property="VerticalAlignment" Value="Top"/>
-                            <Setter Property="MaxHeight" Value="56"/>
-                        </Style>
-                    </DataGridTextColumn.EditingElementStyle>
-                </DataGridTextColumn>
                 <DataGridTemplateColumn Header="Действия" Width="250">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -155,6 +129,9 @@
         </StackPanel>
 
         <!-- Админ-панель -->
-        <Button Grid.Row="4" x:Name="btnOpenAdmin" Content="Открыть админ-панель" Width="200" Click="BtnOpenAdmin_Click" IsEnabled="False" Margin="0,0,0,0" HorizontalAlignment="Left"/>
+        <StackPanel Grid.Row="4" Orientation="Horizontal">
+            <Button x:Name="btnOpenAdmin" Content="Открыть админ-панель" Width="200" Click="BtnOpenAdmin_Click" IsEnabled="False" Margin="0,0,0,0" HorizontalAlignment="Left"/>
+            <Button x:Name="btnOpenReports" Content="Просмотр обработанных работ" Width="250" Click="BtnOpenReports_Click" IsEnabled="False" Margin="10,0,0,0"/>
+        </StackPanel>
     </Grid>
 </Window>

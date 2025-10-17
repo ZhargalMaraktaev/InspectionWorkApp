@@ -1,10 +1,8 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using InspectionWorkApp.Models;
 
 namespace InspectionWorkApp
 {
@@ -29,7 +27,23 @@ namespace InspectionWorkApp
                     var reasons = await db.TOFailureReasons
                         .Where(r => r.IsActive)
                         .ToListAsync();
-                    lstReasons.ItemsSource = reasons;
+
+                    foreach (var reason in reasons)
+                    {
+                        var button = new Button
+                        {
+                            Content = reason.ReasonText,
+                            Margin = new Thickness(5),
+                            Padding = new Thickness(10, 5, 10, 5),
+                            Width = 160, // Ширина кнопки для единообразия
+                            Height = 50, // Высота кнопки
+                            FontSize = 14,
+                            HorizontalContentAlignment = HorizontalAlignment.Left,
+                            Tag = reason.ReasonText // Сохраняем текст причины в Tag
+                        };
+                        button.Click += ReasonButton_Click;
+                        wrapReasons.Children.Add(button);
+                    }
                 }
             }
             catch (Exception ex)
@@ -38,18 +52,14 @@ namespace InspectionWorkApp
             }
         }
 
-        private void BtnSelect_Click(object sender, RoutedEventArgs e)
+        private void ReasonButton_Click(object sender, RoutedEventArgs e)
         {
-            var selectedReason = lstReasons.SelectedItem as TOFailureReason;
-            if (selectedReason != null)
+            var button = sender as Button;
+            if (button != null)
             {
-                SelectedReason = selectedReason.ReasonText;
+                SelectedReason = button.Tag as string;
                 DialogResult = true;
                 Close();
-            }
-            else
-            {
-                MessageBox.Show("Выберите причину!");
             }
         }
 
@@ -59,6 +69,4 @@ namespace InspectionWorkApp
             Close();
         }
     }
-
-   
 }
