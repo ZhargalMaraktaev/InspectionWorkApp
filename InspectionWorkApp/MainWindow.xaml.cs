@@ -745,11 +745,15 @@ namespace InspectionWorkApp
                     await Dispatcher.InvokeAsync(() =>
                     {
                         _allTasks = tasks;
+                        UpdatePagedTasks(); // Сначала обновляем пагинацию (чтобы UI показал пустой список)
+
                         if (_allTasks.Count == 0 && _operatorService.CurrentOperator != null)
                         {
-                            _logger.LogInformation("All tasks completed for current shift, showing CompletionDialog");
+                            _logger.LogInformation("All tasks completed for current shift, closing application");
+                            //MessageBox.Show("Все задачи обработаны. Программа закрывается.");
+                            this.Close(); // Автоматическое закрытие программы
                         }
-                        UpdatePagedTasks();
+
                         if (dgTasks.ItemsSource == null)
                         {
                             dgTasks.ItemsSource = _tasksCollection;

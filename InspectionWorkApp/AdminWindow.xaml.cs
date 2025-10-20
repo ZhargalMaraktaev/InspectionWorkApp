@@ -14,9 +14,6 @@ namespace InspectionWorkApp
     {
         private readonly YourDbContext _db;
         private readonly OperatorService _operatorService;
-        private readonly int _koWorkTypeId = 2; // Id для КО работ
-        private readonly DateTime _defaultExecutionTime = new DateTime(1900, 1, 1); // Безопасное значение для DATETIME
-
         public AdminWindow(YourDbContext db, OperatorService operatorService)
         {
             InitializeComponent();
@@ -72,12 +69,6 @@ namespace InspectionWorkApp
             cmbAssignFreq.ItemsSource = _db.TOWorkFrequencies.ToList();
             cmbAssignRole.ItemsSource = _db.TORoles.ToList();
             cmbAssignWorkType.ItemsSource = _db.TOWorkTypes.ToList();
-            var assignments = _db.TOWorkAssignments
-                .Include(a => a.Work)
-                .Include(a => a.Sector)
-                .Select(a => new { a.Id, DisplayName = $"{a.Work.WorkName} - {a.Sector.SectorName}" })
-                .ToList();
-            cmbAssignment.ItemsSource = assignments;
         }
 
         private void LoadWorks()
@@ -107,64 +98,13 @@ namespace InspectionWorkApp
                 WorkName = txtNewWorkName.Text
             };
             _db.TOWorks.Add(work);
-            await _db.SaveChangesAsync();
-
-            var freq = (WorkFrequency)cmbFreq.SelectedItem;
-            var role = (Role)cmbRole.SelectedItem;
-            var workType = (TOWorkTypes)cmbWorkType.SelectedItem;
-
-            var sectors = await _db.dic_Sector.ToListAsync();
-            int addedAssignments = 0;
-
-            foreach (var sector in sectors)
-            {
-                var existingAssignment = await _db.TOWorkAssignments
-                    .FirstOrDefaultAsync(a => a.WorkId == work.Id && a.SectorId == sector.Id);
-                if (existingAssignment != null)
-                {
-                    continue;
-                }
-
-                var assignment = new WorkAssignment
-                {
-                    WorkId = work.Id,
-                    FreqId = freq.Id,
-                    RoleId = role.Id,
-                    WorkTypeId = workType.Id,
-                    SectorId = sector.Id,
-                    IsCanceled = false,
-                    LastExecTime = null
-                };
-                _db.TOWorkAssignments.Add(assignment);
-                await _db.SaveChangesAsync(); // Сохраняем assignment для получения Id
-                addedAssignments++;
-
-                if (workType.Id == _koWorkTypeId)
-                {
-                    var dueDateTime = DateTime.Today.AddDays(1).AddHours(8); // Фиксированное время 08:00 следующего дня
-                    var execution = new Execution
-                    {
-                        AssignmentId = assignment.Id,
-                        OperatorId = null,
-                        ExecutionTime = _defaultExecutionTime,
-                        Status = 2,
-                        DueDateTime = dueDateTime
-                    };
-                    _db.TOExecutions.Add(execution);
-                }
-            }
-
-            if (addedAssignments == 0)
-            {
-                MessageBox.Show("Назначения не созданы: все сектора уже имеют назначения для выбранной работы.");
-                return;
-            }
 
             try
             {
                 await _db.SaveChangesAsync();
-                MessageBox.Show($"Назначения созданы для {addedAssignments} секторов!");
+                MessageBox.Show("Работа успешно создана!");
                 LoadCombos();
+                LoadWorks();
             }
             catch (DbUpdateException ex)
             {
@@ -200,7 +140,7 @@ namespace InspectionWorkApp
             foreach (var sector in sectors)
             {
                 var existingAssignment = await _db.TOWorkAssignments
-                    .FirstOrDefaultAsync(a => a.WorkId == work.Id && a.SectorId == sector.Id);
+                    .FirstOrDefaultAsync(a => a.WorkId == work.Id && a.SectorId == sector.Id && !a.IsCanceled);
                 if (existingAssignment != null)
                 {
                     continue;
@@ -219,25 +159,11 @@ namespace InspectionWorkApp
                 _db.TOWorkAssignments.Add(assignment);
                 await _db.SaveChangesAsync();
                 addedAssignments++;
-
-                if (workType.Id == _koWorkTypeId)
-                {
-                    var dueDateTime = DateTime.Today.AddDays(1).AddHours(8); // Фиксированное время 08:00 следующего дня
-                    var execution = new Execution
-                    {
-                        AssignmentId = assignment.Id,
-                        OperatorId = null,
-                        ExecutionTime = _defaultExecutionTime,
-                        Status = 2,
-                        DueDateTime = dueDateTime
-                    };
-                    _db.TOExecutions.Add(execution);
-                }
             }
 
             if (addedAssignments == 0)
             {
-                MessageBox.Show("Назначения не созданы: все сектора уже имеют назначения для выбранной работы.");
+                MessageBox.Show("Назначения не созданы: все сектора уже имеют действующие назначения для выбранной работы.");
                 return;
             }
 
@@ -250,6 +176,47 @@ namespace InspectionWorkApp
             catch (DbUpdateException ex)
             {
                 MessageBox.Show($"Ошибка при сохранении: {ex.InnerException?.Message ?? ex.Message}");
+            }
+        }
+
+        private async void BtnCancelAssignments_Click(object sender, RoutedEventArgs e)
+        {
+            if (_operatorService.CurrentOperator == null)
+            {
+                MessageBox.Show("Авторизуйтесь, считав карту!");
+                return;
+            }
+
+            if ((sender as Button)?.DataContext is Work selectedWork)
+            {
+                var result = MessageBox.Show($"Вы уверены, что хотите отменить все назначения для работы '{selectedWork.WorkName}'?",
+                                           "Подтверждение отмены",
+                                           MessageBoxButton.YesNo,
+                                           MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var assignments = await _db.TOWorkAssignments
+                        .Where(a => a.WorkId == selectedWork.Id && !a.IsCanceled)
+                        .ToListAsync();
+
+                    foreach (var assignment in assignments)
+                    {
+                        assignment.IsCanceled = true;
+                    }
+
+                    await _db.SaveChangesAsync();
+                    MessageBox.Show("Все назначения для выбранной работы успешно отменены!");
+                    LoadCombos();
+                }
+                catch (DbUpdateException ex)
+                {
+                    MessageBox.Show($"Ошибка при отмене назначений: {ex.InnerException?.Message ?? ex.Message}");
+                }
             }
         }
 
@@ -311,60 +278,6 @@ namespace InspectionWorkApp
             }
         }
 
-        private async void BtnCreateTask_Click(object sender, RoutedEventArgs e)
-        {
-            if (_operatorService.CurrentOperator == null)
-            {
-                MessageBox.Show("Авторизуйтесь, считав карту!");
-                return;
-            }
-
-            if (cmbAssignment.SelectedItem == null)
-            {
-                MessageBox.Show("Выберите назначение!");
-                return;
-            }
-
-            var assignmentId = (int)((dynamic)cmbAssignment.SelectedItem).Id;
-            var assignment = await _db.TOWorkAssignments
-                .Include(a => a.WorkType)
-                .FirstOrDefaultAsync(a => a.Id == assignmentId);
-
-            DateTime? dueDateTime = null;
-            if (!string.IsNullOrEmpty(txtDueDateTime.Text) &&
-                txtDueDateTime.Text != "ДД.ММ.ГГГГ ЧЧ:ММ (опционально)" &&
-                DateTime.TryParse(txtDueDateTime.Text, out var parsedDateTime))
-            {
-                if (parsedDateTime < new DateTime(1753, 1, 1))
-                {
-                    MessageBox.Show("Дата должна быть не ранее 01.01.1753!");
-                    return;
-                }
-                dueDateTime = parsedDateTime;
-            }
-
-            var newExecution = new Execution
-            {
-                AssignmentId = assignmentId,
-                OperatorId = null,
-                ExecutionTime = _defaultExecutionTime,
-                Status = 2,
-                DueDateTime = dueDateTime
-            };
-            _db.TOExecutions.Add(newExecution);
-
-            try
-            {
-                await _db.SaveChangesAsync();
-                MessageBox.Show("Задача создана!");
-                LoadCombos();
-            }
-            catch (DbUpdateException ex)
-            {
-                MessageBox.Show($"Ошибка при сохранении задачи: {ex.InnerException?.Message ?? ex.Message}");
-            }
-        }
-
         private async void BtnDeleteWork_Click(object sender, RoutedEventArgs e)
         {
             if (_operatorService.CurrentOperator == null)
@@ -375,11 +288,43 @@ namespace InspectionWorkApp
 
             if ((sender as Button)?.DataContext is Work selectedWork)
             {
+                var result = MessageBox.Show($"Вы уверены, что хотите удалить работу '{selectedWork.WorkName}' и все связанные с ней назначения и задачи?",
+                                            "Подтверждение удаления",
+                                            MessageBoxButton.YesNo,
+                                            MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+
                 try
                 {
+                    // First, delete related executions
+                    var executions = await _db.TOExecutions
+                        .Where(ex => _db.TOWorkAssignments
+                            .Where(a => a.WorkId == selectedWork.Id)
+                            .Select(a => a.Id)
+                            .Contains(ex.AssignmentId))
+                        .ToListAsync();
+                    if (executions.Any())
+                    {
+                        _db.TOExecutions.RemoveRange(executions);
+                    }
+
+                    // Then, delete related assignments
+                    var assignments = await _db.TOWorkAssignments
+                        .Where(a => a.WorkId == selectedWork.Id)
+                        .ToListAsync();
+                    if (assignments.Any())
+                    {
+                        _db.TOWorkAssignments.RemoveRange(assignments);
+                    }
+
+                    // Finally, delete the work
                     _db.TOWorks.Remove(selectedWork);
+
                     await _db.SaveChangesAsync();
-                    MessageBox.Show("Работа удалена вместе с назначениями!");
+                    MessageBox.Show("Работа и все связанные назначения и задачи успешно удалены!");
                     LoadWorks();
                     LoadCombos();
                 }
@@ -394,6 +339,5 @@ namespace InspectionWorkApp
         {
             Close();
         }
-        
     }
 }
