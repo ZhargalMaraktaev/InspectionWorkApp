@@ -8,5 +8,6 @@ namespace InspectionWorkApp.Interfaces
         Task<Employee1CModel> GetEmployeeAsync(string cardNumber);
         Task SaveEmployeeAsync(Employee1CModel employee);
         Task<int?> GetOperatorIdAsync(string personnelNumber);
+        Task<Employee1CModel> SyncEmployeeAsync(Employee1CModel employee);
     }
 }

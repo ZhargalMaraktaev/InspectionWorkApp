@@ -9,7 +9,7 @@ namespace InspectionWorkApp.Models
     public class Skud
     {
         public int Id { get; set; }
-        public string IdCard { get; set; }
+        public string idCard { get; set; }
         public string TabNumber { get; set; }
         public string FIO { get; set; }
         public string Department { get; set; }

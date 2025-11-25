@@ -1,11 +1,12 @@
-﻿using System;
-using System.Data;
-using System.Data.SqlClient;
-using System.Threading.Tasks;
-using InspectionWorkApp.Interfaces;
+﻿using InspectionWorkApp.Interfaces;
 using InspectionWorkApp.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace InspectionWorkApp.Services
 {
@@ -20,15 +21,195 @@ namespace InspectionWorkApp.Services
                 ?? throw new ArgumentNullException(nameof(configuration), "Connection string not found.");
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
-
-        public async Task<Employee1CModel> GetEmployeeAsync(string cardNumber)
+        private async Task<Employee1CModel> GetEmployeeByPersonnelNumberAsync(string personnelNumber)
         {
             try
             {
                 Employee1CModel employee = null;
                 using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-                using var cmd = new SqlCommand("SELECT idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM Pilot.dbo.dic_SKUD WHERE idCard = @IdCard", conn);
+                using var cmd = new SqlCommand("SELECT TOP 1 idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM Pilot.dbo.dic_SKUD WHERE TabNumber = @TabNumber", conn);
+                cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = personnelNumber;
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    string employName = reader["EmployName"].ToString();
+                    int? toRoleId = reader["TORoleId"] != DBNull.Value ? Convert.ToInt32(reader["TORoleId"]) : null;
+
+                    employee = new Employee1CModel
+                    {
+                        CardNumber = reader["idCard"].ToString(),
+                        PersonnelNumber = reader["TabNumber"].ToString(),
+                        FullName = reader["FIO"].ToString(),
+                        Department = reader["Department"].ToString(),
+                        Position = employName,
+                        TORoleId = toRoleId,
+                        ErrorCode = (int)Employee1CModel.ErrorCodes.ReadingSuccessful
+                    };
+                }
+
+                if (employee == null)
+                {
+                    _logger.LogInformation("Employee not found for personnelNumber: {PersonnelNumber}", personnelNumber);
+                    return null;
+                }
+
+                return employee;
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(ex, "Database error in GetEmployeeByPersonnelNumberAsync for personnelNumber: {PersonnelNumber}", personnelNumber);
+                return new Employee1CModel
+                {
+                    PersonnelNumber = personnelNumber,
+                    ErrorCode = (int)Employee1CModel.ErrorCodes.SpecificError,
+                    ErrorText = $"Database error: {ex.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in GetEmployeeByPersonnelNumberAsync for personnelNumber: {PersonnelNumber}", personnelNumber);
+                return new Employee1CModel
+                {
+                    PersonnelNumber = personnelNumber,
+                    ErrorCode = (int)Employee1CModel.ErrorCodes.UnknownError,
+                    ErrorText = $"Unexpected error: {ex.Message}"
+                };
+            }
+        }
+        public async Task<Employee1CModel> SyncEmployeeAsync(Employee1CModel newEmployee)
+        {
+            if (newEmployee.ErrorCode != 0)
+            {
+                return newEmployee; // Уже ошибка из 1C, возвращаем как есть
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync();
+
+                var existing = await GetEmployeeByPersonnelNumberAsync(newEmployee.PersonnelNumber);
+                if (existing != null && existing.ErrorCode != (int)Employee1CModel.ErrorCodes.ReadingSuccessful)
+                {
+                    return existing; // Ошибка при получении из БД
+                }
+
+                int? newTORoleId = DetermineRoleFromEmployName(newEmployee.Position);
+
+                if (existing == null)
+                {
+                    // Insert new
+                    using var cmd = new SqlCommand(@"
+                        INSERT INTO Pilot.dbo.dic_SKUD (idCard, TabNumber, FIO, Department, EmployName, TORoleId)
+                        VALUES (@IdCard, @TabNumber, @FIO, @Department, @EmployName, @TORoleId)", conn);
+                    cmd.Parameters.Add("@IdCard", SqlDbType.NVarChar).Value = newEmployee.CardNumber ?? (object)DBNull.Value;
+                    cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = newEmployee.PersonnelNumber ?? (object)DBNull.Value;
+                    cmd.Parameters.Add("@FIO", SqlDbType.NVarChar).Value = newEmployee.FullName ?? (object)DBNull.Value;
+                    cmd.Parameters.Add("@Department", SqlDbType.NVarChar).Value = newEmployee.Department ?? (object)DBNull.Value;
+                    cmd.Parameters.Add("@EmployName", SqlDbType.NVarChar).Value = newEmployee.Position ?? (object)DBNull.Value;
+                    cmd.Parameters.Add("@TORoleId", SqlDbType.Int).Value = newTORoleId ?? (object)DBNull.Value;
+
+                    await cmd.ExecuteNonQueryAsync();
+                    _logger.LogInformation("New employee inserted: {PersonnelNumber}, TORoleId={TORoleId}", newEmployee.PersonnelNumber, newTORoleId);
+
+                    newEmployee.TORoleId = newTORoleId;
+                    newEmployee.ErrorCode = (int)Employee1CModel.ErrorCodes.ReadingSuccessful;
+                    return newEmployee;
+                }
+                else
+                {
+                    // Compare and update if needed
+                    bool needsUpdate = false;
+                    StringBuilder setClause = new StringBuilder();
+                    var parameters = new List<SqlParameter>();
+
+                    if (existing.CardNumber != newEmployee.CardNumber)
+                    {
+                        needsUpdate = true;
+                        setClause.Append("idCard = @IdCard, ");
+                        parameters.Add(new SqlParameter("@IdCard", SqlDbType.NVarChar) { Value = newEmployee.CardNumber ?? (object)DBNull.Value });
+                    }
+
+                    if (existing.FullName != newEmployee.FullName)
+                    {
+                        needsUpdate = true;
+                        setClause.Append("FIO = @FIO, ");
+                        parameters.Add(new SqlParameter("@FIO", SqlDbType.NVarChar) { Value = newEmployee.FullName ?? (object)DBNull.Value });
+                    }
+
+                    if (existing.Department != newEmployee.Department)
+                    {
+                        needsUpdate = true;
+                        setClause.Append("Department = @Department, ");
+                        parameters.Add(new SqlParameter("@Department", SqlDbType.NVarChar) { Value = newEmployee.Department ?? (object)DBNull.Value });
+                    }
+
+                    if (existing.Position != newEmployee.Position || existing.TORoleId != newTORoleId)
+                    {
+                        needsUpdate = true;
+                        setClause.Append("EmployName = @EmployName, ");
+                        parameters.Add(new SqlParameter("@EmployName", SqlDbType.NVarChar) { Value = newEmployee.Position ?? (object)DBNull.Value });
+                        setClause.Append("TORoleId = @TORoleId, ");
+                        parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
+                    }
+
+                    if (needsUpdate)
+                    {
+                        string setString = setClause.ToString().TrimEnd(' ', ',');
+                        using var cmd = new SqlCommand($@"
+                            UPDATE Pilot.dbo.dic_SKUD
+                            SET {setString}
+                            WHERE TabNumber = @TabNumber", conn);
+                        cmd.Parameters.Add(new SqlParameter("@TabNumber", SqlDbType.NVarChar) { Value = newEmployee.PersonnelNumber ?? (object)DBNull.Value });
+                        cmd.Parameters.AddRange(parameters.ToArray());
+
+                        await cmd.ExecuteNonQueryAsync();
+                        _logger.LogInformation("Employee updated: {PersonnelNumber}, Updated fields: {UpdatedFields}", newEmployee.PersonnelNumber, setString);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("No changes detected for employee: {PersonnelNumber}", newEmployee.PersonnelNumber);
+                    }
+
+                    newEmployee.TORoleId = newTORoleId ?? existing.TORoleId;
+                    newEmployee.ErrorCode = (int)Employee1CModel.ErrorCodes.ReadingSuccessful;
+                    return newEmployee;
+                }
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(ex, "Database error in SyncEmployeeAsync for personnelNumber: {PersonnelNumber}", newEmployee.PersonnelNumber);
+                return new Employee1CModel
+                {
+                    PersonnelNumber = newEmployee.PersonnelNumber,
+                    CardNumber = newEmployee.CardNumber,
+                    ErrorCode = (int)Employee1CModel.ErrorCodes.SpecificError,
+                    ErrorText = $"Database error: {ex.Message}"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error in SyncEmployeeAsync for personnelNumber: {PersonnelNumber}", newEmployee.PersonnelNumber);
+                return new Employee1CModel
+                {
+                    PersonnelNumber = newEmployee.PersonnelNumber,
+                    CardNumber = newEmployee.CardNumber,
+                    ErrorCode = (int)Employee1CModel.ErrorCodes.UnknownError,
+                    ErrorText = $"Unexpected error: {ex.Message}"
+                };
+            }
+        }
+        public async Task<Employee1CModel> GetEmployeeAsync(string cardNumber)
+        {
+            try
+            {
+                //cardNumber= "163,17122";
+                Employee1CModel employee = null;
+                using var conn = new SqlConnection(_connectionString);
+                await conn.OpenAsync();
+                using var cmd = new SqlCommand("SELECT TOP 1 idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM Pilot.dbo.dic_SKUD WHERE idCard = @IdCard order by id asc", conn);
                 cmd.Parameters.Add("@IdCard", SqlDbType.NVarChar).Value = cardNumber;
 
                 using var reader = await cmd.ExecuteReaderAsync();
@@ -197,16 +378,16 @@ namespace InspectionWorkApp.Services
                 _logger.LogInformation("Assigned TORoleId=2 for EmployName: {EmployName}", employName);
                 return 2;
             }
-            else if (employName.Contains("оператор"))
-            {
-                _logger.LogInformation("Assigned TORoleId=1 for EmployName: {EmployName}", employName);
-                return 1;
-            }
             else if (employName.Contains("инженер") || employName.Contains("мастер") ||
                      employName.Contains("начальник") || employName.Contains("заместитель"))
             {
                 _logger.LogInformation("Assigned TORoleId=4 for EmployName: {EmployName}", employName);
                 return 4;
+            }
+            else
+            {
+                _logger.LogInformation("Assigned TORoleId=1 for EmployName: {EmployName}", employName);
+                return 1;
             }
 
             _logger.LogInformation("No matching role found for EmployName: {EmployName}", employName);

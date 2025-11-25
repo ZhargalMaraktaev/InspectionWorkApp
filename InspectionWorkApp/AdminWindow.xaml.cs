@@ -62,10 +62,14 @@ namespace InspectionWorkApp
 
         private void LoadCombos()
         {
-            cmbFreq.ItemsSource = _db.TOWorkFrequencies.ToList();
-            cmbRole.ItemsSource = _db.TORoles.ToList();
-            cmbWorkType.ItemsSource = _db.TOWorkTypes.ToList();
+            //cmbFreq.ItemsSource = _db.TOWorkFrequencies.ToList();
+            //cmbRole.ItemsSource = _db.TORoles.ToList();
+            //cmbWorkType.ItemsSource = _db.TOWorkTypes.ToList();
             cmbExistingWork.ItemsSource = _db.TOWorks.ToList();
+
+            // Загрузка секторов для комбобокса
+            cmbSector.ItemsSource = _db.dic_Sector.ToList();
+
             cmbAssignFreq.ItemsSource = _db.TOWorkFrequencies.ToList();
             cmbAssignRole.ItemsSource = _db.TORoles.ToList();
             cmbAssignWorkType.ItemsSource = _db.TOWorkTypes.ToList();
@@ -84,12 +88,9 @@ namespace InspectionWorkApp
                 return;
             }
 
-            if (string.IsNullOrEmpty(txtNewWorkName.Text) ||
-                cmbFreq.SelectedItem == null ||
-                cmbRole.SelectedItem == null ||
-                cmbWorkType.SelectedItem == null)
+            if (string.IsNullOrEmpty(txtNewWorkName.Text))
             {
-                MessageBox.Show("Заполните все поля!");
+                MessageBox.Show("Заполните поле!");
                 return;
             }
 
@@ -121,6 +122,7 @@ namespace InspectionWorkApp
             }
 
             if (cmbExistingWork.SelectedItem == null ||
+                cmbSector.SelectedItem == null ||
                 cmbAssignFreq.SelectedItem == null ||
                 cmbAssignRole.SelectedItem == null ||
                 cmbAssignWorkType.SelectedItem == null)
@@ -130,47 +132,40 @@ namespace InspectionWorkApp
             }
 
             var work = (Work)cmbExistingWork.SelectedItem;
+            var sector = (Sector)cmbSector.SelectedItem;
             var freq = (WorkFrequency)cmbAssignFreq.SelectedItem;
             var role = (Role)cmbAssignRole.SelectedItem;
             var workType = (TOWorkTypes)cmbAssignWorkType.SelectedItem;
 
-            var sectors = await _db.dic_Sector.ToListAsync();
-            int addedAssignments = 0;
+            // Проверяем, существует ли уже назначение для этой работы и сектора
+            var existingAssignment = await _db.TOWorkAssignments
+                .FirstOrDefaultAsync(a => a.WorkId == work.Id &&
+                                        a.SectorId == sector.Id &&
+                                        !a.IsCanceled);
 
-            foreach (var sector in sectors)
+            if (existingAssignment != null)
             {
-                var existingAssignment = await _db.TOWorkAssignments
-                    .FirstOrDefaultAsync(a => a.WorkId == work.Id && a.SectorId == sector.Id && !a.IsCanceled);
-                if (existingAssignment != null)
-                {
-                    continue;
-                }
-
-                var assignment = new WorkAssignment
-                {
-                    WorkId = work.Id,
-                    FreqId = freq.Id,
-                    RoleId = role.Id,
-                    WorkTypeId = workType.Id,
-                    SectorId = sector.Id,
-                    IsCanceled = false,
-                    LastExecTime = null
-                };
-                _db.TOWorkAssignments.Add(assignment);
-                await _db.SaveChangesAsync();
-                addedAssignments++;
-            }
-
-            if (addedAssignments == 0)
-            {
-                MessageBox.Show("Назначения не созданы: все сектора уже имеют действующие назначения для выбранной работы.");
+                MessageBox.Show($"Назначение для работы '{work.WorkName}' и сектора '{sector.SectorName}' уже существует!");
                 return;
             }
+
+            var assignment = new WorkAssignment
+            {
+                WorkId = work.Id,
+                FreqId = freq.Id,
+                RoleId = role.Id,
+                WorkTypeId = workType.Id,
+                SectorId = sector.Id,
+                IsCanceled = false,
+                LastExecTime = null
+            };
+
+            _db.TOWorkAssignments.Add(assignment);
 
             try
             {
                 await _db.SaveChangesAsync();
-                MessageBox.Show($"Назначения созданы для {addedAssignments} секторов!");
+                MessageBox.Show($"Назначение успешно создано для сектора '{sector.SectorName}'!");
                 LoadCombos();
             }
             catch (DbUpdateException ex)

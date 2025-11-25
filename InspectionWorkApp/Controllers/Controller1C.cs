@@ -15,7 +15,7 @@ namespace InspectionWorkApp.Controllers
             string xmlPattern;
             try
             {
-                string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Controllers", "1C Controller", "employee_data.xml");
+                string filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "employee_data.xml");
                 xmlPattern = await File.ReadAllTextAsync(filePath);
             }
             catch (FileNotFoundException ex)

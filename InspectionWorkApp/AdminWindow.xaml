@@ -18,25 +18,69 @@
         </StackPanel>
 
         <!-- Создание работы -->
+        <!-- Создание работы -->
         <GroupBox Grid.Row="0" Header="Добавить новую работу" Margin="0,0,0,10">
             <StackPanel Orientation="Vertical">
                 <TextBox x:Name="txtNewWorkName" Width="200" Margin="0,0,0,5" Text="Название работы"/>
-                <ComboBox x:Name="cmbFreq" Width="200" DisplayMemberPath="Frequency" Margin="0,0,0,5"/>
-                <ComboBox x:Name="cmbRole" Width="200" DisplayMemberPath="RoleName" Margin="0,0,0,5"/>
-                <ComboBox x:Name="cmbWorkType" Width="200" DisplayMemberPath="WorkType" Margin="0,0,0,5"/>
                 <Button x:Name="btnAddWork" Content="Добавить работу" Width="150" Click="BtnAddWork_Click" Margin="0,5,0,0"/>
             </StackPanel>
         </GroupBox>
 
         <!-- Создание назначения -->
         <GroupBox Grid.Row="1" Header="Создать назначение" Margin="0,0,0,10">
-            <StackPanel Orientation="Vertical">
-                <ComboBox x:Name="cmbExistingWork" Width="200" DisplayMemberPath="WorkName" Margin="0,0,0,5"/>
-                <ComboBox x:Name="cmbAssignFreq" Width="200" DisplayMemberPath="Frequency" Margin="0,0,0,5"/>
-                <ComboBox x:Name="cmbAssignRole" Width="200" DisplayMemberPath="RoleName" Margin="0,0,0,5"/>
-                <ComboBox x:Name="cmbAssignWorkType" Width="200" DisplayMemberPath="WorkType" Margin="0,0,0,5"/>
-                <Button x:Name="btnCreateAssignment" Content="Создать назначение" Width="150" Click="BtnCreateAssignment_Click" Margin="0,5,0,0"/>
-            </StackPanel>
+            <Grid Margin="15,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="160"/>
+                    <!-- ширина подписей -->
+                    <ColumnDefinition Width="*"/>
+                    <!-- остальное место под ComboBox -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Строка 1 -->
+                <Label Content="Выберите работу:" Target="{Binding ElementName=cmbExistingWork}"
+               Grid.Row="0" Grid.Column="0" VerticalAlignment="Center"/>
+                <ComboBox x:Name="cmbExistingWork" Grid.Row="0" Grid.Column="1"
+                  DisplayMemberPath="WorkName" Margin="0,5"/>
+
+                <!-- Строка 2 -->
+                <Label Content="Участок:" Target="{Binding ElementName=cmbSector}"
+               Grid.Row="1" Grid.Column="0" VerticalAlignment="Center"/>
+                <ComboBox x:Name="cmbSector" Grid.Row="1" Grid.Column="1"
+                  DisplayMemberPath="SectorName" Margin="0,5"/>
+
+                <!-- Строка 3 -->
+                <Label Content="Периодичность:" Target="{Binding ElementName=cmbAssignFreq}"
+               Grid.Row="2" Grid.Column="0" VerticalAlignment="Center"/>
+                <ComboBox x:Name="cmbAssignFreq" Grid.Row="2" Grid.Column="1"
+                  DisplayMemberPath="Frequency" Margin="0,5"/>
+
+                <!-- Строка 4 -->
+                <Label Content="Роль исполнителя:" Target="{Binding ElementName=cmbAssignRole}"
+               Grid.Row="3" Grid.Column="0" VerticalAlignment="Center"/>
+                <ComboBox x:Name="cmbAssignRole" Grid.Row="3" Grid.Column="1"
+                  DisplayMemberPath="RoleName" Margin="0,5"/>
+
+                <!-- Строка 5 -->
+                <Label Content="Тип работ:" Target="{Binding ElementName=cmbAssignWorkType}"
+               Grid.Row="4" Grid.Column="0" VerticalAlignment="Center"/>
+                <ComboBox x:Name="cmbAssignWorkType" Grid.Row="4" Grid.Column="1"
+                  DisplayMemberPath="WorkType" Margin="0,5"/>
+
+                <!-- Кнопка по центру под всем -->
+                <Button x:Name="btnCreateAssignment" Content="Создать назначение"
+                Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="2"
+                HorizontalAlignment="Center" Width="180" Height="35"
+                Margin="0,15,0,5"
+                Click="BtnCreateAssignment_Click"/>
+            </Grid>
         </GroupBox>
 
         <!-- Список работ -->
@@ -58,10 +102,10 @@
         </DataGrid>
 
         <!-- Кнопка для генерации назначений -->
-        <Button Grid.Row="3" x:Name="btnGenerateAssignments" Content="Генерировать назначения" Width="150" Click="BtnGenerateAssignments_Click" Margin="0,0,0,10"/>
+        <!--<Button Grid.Row="3" x:Name="btnGenerateAssignments" Content="Генерировать назначения" Width="150" Click="BtnGenerateAssignments_Click" Margin="0,0,0,10"/>-->
 
         <!-- Кнопка для удаления назначений -->
-        <Button Grid.Row="4" x:Name="btnDeleteAssignments" Content="Удалить все назначения" Width="150" Click="BtnDeleteAssignments_Click" Margin="0,0,0,10"/>
+        <!--<Button Grid.Row="4" x:Name="btnDeleteAssignments" Content="Удалить все назначения" Width="150" Click="BtnDeleteAssignments_Click" Margin="0,0,0,10"/>-->
 
         <!-- Кнопка закрытия -->
         <Button Grid.Row="5" x:Name="btnClose" Content="Закрыть" Width="150" Click="BtnClose_Click"/>

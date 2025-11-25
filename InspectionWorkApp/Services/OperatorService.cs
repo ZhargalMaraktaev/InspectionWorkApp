@@ -75,6 +75,7 @@ namespace InspectionWorkApp.Services
         {
             try
             {
+                //cardNumber = "163,17122";
                 _logger.LogInformation("AuthenticateOperatorAsync called: CardNumber={CardNumber}, IsAuth={IsAuth}, AuthTime={AuthTime}", cardNumber, isAuth, authTime);
                 Employee1CModel current = null;
                 if (isAuth)
@@ -144,7 +145,27 @@ namespace InspectionWorkApp.Services
             try
             {
                 _logger.LogInformation("InitializeOperatorAsync called for cardNumber: {CardNumber}", cardNumber);
-                CurrentOperator = await _employeeRepository.GetEmployeeAsync(cardNumber) ?? await FetchAndSaveFrom1C(cardNumber);
+                var employeeFrom1C = await _controller1C.GetResp1CSKUD(cardNumber);
+                
+                if (employeeFrom1C.ErrorCode != 0 || string.IsNullOrEmpty(employeeFrom1C.PersonnelNumber))
+                {
+                    _logger.LogWarning("Failed to fetch valid employee from 1C for cardNumber: {CardNumber}. ErrorCode: {ErrorCode}, ErrorText: {ErrorText}", 
+                        cardNumber, employeeFrom1C.ErrorCode, employeeFrom1C.ErrorText);
+                    CurrentOperator = null;
+                    return;
+                }
+
+                var syncedEmployee = await _employeeRepository.SyncEmployeeAsync(employeeFrom1C);
+                
+                if (syncedEmployee.ErrorCode != (int)Employee1CModel.ErrorCodes.ReadingSuccessful)
+                {
+                    _logger.LogWarning("Failed to sync employee for cardNumber: {CardNumber}. ErrorCode: {ErrorCode}, ErrorText: {ErrorText}", 
+                        cardNumber, syncedEmployee.ErrorCode, syncedEmployee.ErrorText);
+                    CurrentOperator = null;
+                    return;
+                }
+
+                CurrentOperator = syncedEmployee;
             }
             catch (Exception ex)
             {

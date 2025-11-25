@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
 namespace InspectionWorkApp.Models
@@ -19,13 +20,21 @@ namespace InspectionWorkApp.Models
             ReaderConnecting = 5
         }
 
-        public string CardNumber { get; set; }
-        public string PersonnelNumber { get; set; }
-        public string FullName { get; set; }
-        public string Department { get; set; }
-        public string Position { get; set; }
-        public int ErrorCode { get; set; }
-        public string ErrorText { get; set; }
+        public string? CardNumber { get; set; }
+        [JsonPropertyName("ТабельныйНомер")]
+        public string? PersonnelNumber { get; set; }
+
+        [JsonPropertyName("Сотрудник")]
+        public string? FullName { get; set; }
+
+        [JsonPropertyName("Подразделение")]
+        public string? Department { get; set; }
+
+        [JsonPropertyName("Должность")]
+        public string? Position { get; set; }
+
+        public int ErrorCode { get; set; } = 0;
+        public string? ErrorText { get; set; }
         public int? TORoleId { get; set; } // Добавлено поле для TORoleId
     }
 }

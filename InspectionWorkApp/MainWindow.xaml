@@ -21,7 +21,7 @@
         <!-- Статус авторизации -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
             <TextBlock Text="Статус оператора: " FontWeight="Bold"/>
-            <TextBlock x:Name="txtOperatorStatus" Text="Не авторизован" Margin="5,0,0,0" Foreground="Red"/>
+            <TextBlock x:Name="txtOperatorStatus" Text="Вставьте пропуск" Margin="5,0,0,0" Foreground="Red"/>
             <TextBlock Text="Статус БД: " FontWeight="Bold" Margin="10,0,0,0" HorizontalAlignment="Right"/>
             <TextBlock x:Name="txtDatabaseStatus" Text="Проверяется..." Margin="5,0,0,0" Foreground="Orange" HorizontalAlignment="Right"/>
         </StackPanel>

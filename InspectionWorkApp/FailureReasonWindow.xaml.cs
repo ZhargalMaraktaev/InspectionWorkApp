@@ -35,7 +35,7 @@ namespace InspectionWorkApp
                             Content = reason.ReasonText,
                             Margin = new Thickness(5),
                             Padding = new Thickness(10, 5, 10, 5),
-                            Width = 160, // Ширина кнопки для единообразия
+                            Width = 180, // Ширина кнопки для единообразия
                             Height = 50, // Высота кнопки
                             FontSize = 14,
                             HorizontalContentAlignment = HorizontalAlignment.Left,

@@ -49,6 +49,10 @@ namespace InspectionWorkApp
         private bool _isDatabaseConnected; // Для отслеживания состояния
         private string _databaseStatusText; // Для текста статуса
         private Brush _databaseStatusColor; // Для цвета текста
+        private int? _startupRoleId;
+        private string _startupCardNumber;
+        private bool _isAutoInitialized = false;  // ← НОВОЕ
+        private bool _f8WaitingForConfirm = false;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -61,7 +65,7 @@ namespace InspectionWorkApp
                 NotifyPropertyChanged(nameof(IsAdminRole));
             }
         }
-
+        
         public string DatabaseStatusText
         {
             get => _databaseStatusText;
@@ -105,7 +109,7 @@ namespace InspectionWorkApp
 
             // Установить DataContext для привязки
             DataContext = this;
-
+            this.Topmost = true;
             _comController.IsReading = true;
             _logger.LogInformation("MainWindow initialized.");
             _loggerFactory = loggerFactory;
@@ -115,40 +119,78 @@ namespace InspectionWorkApp
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
+        // Новый конструктор или метод для получения параметров
+        public void SetStartupParameters(int roleId, string cardNumber)
+        {
+            _startupRoleId = roleId;
+            _startupCardNumber = cardNumber;
+            _isAutoInitialized = true;  // ← Устанавливаем флаг
+            _logger.LogInformation("Startup parameters received: RoleId={RoleId}, CardNumber={CardNumber}", roleId, cardNumber);
+        }
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
+                _currentSectorId = await GetCurrentSectorIdAsync();
+                _logger.LogInformation("SectorId loaded early: {SectorId}", _currentSectorId);
+                // Используем параметры из командной строки, если есть
+                if (_startupRoleId.HasValue && !string.IsNullOrEmpty(_startupCardNumber))
+                {
+                    _currentRoleId = _startupRoleId;
+                    await _operatorService.InitializeOperatorAsync(_startupCardNumber);
+                    _logger.LogInformation("✓ AUTO-INIT APPLIED: RoleId={RoleId}", _currentRoleId);
+                }
+                else
+                {
+                    _logger.LogInformation("No startup parameters, using default initialization");
+                }
                 // Устанавливаем хук клавиатуры для не-администраторов
                 if (_currentRoleId != 4)
                 {
                     SetKeyboardHook();
                     HideTaskbar();
                 }
-                _currentSectorId = await GetCurrentSectorIdAsync();
+                
                 _logger.LogInformation("Set _currentSectorId to {SectorId} from GetCurrentSectorIdAsync", _currentSectorId.HasValue ? _currentSectorId.Value.ToString() : "null");
                 await LoadCombosAsync();
-                await LoadTasksAsync();
+                //await Dispatcher.InvokeAsync(() =>  // 2. Выбор ПОСЛЕ загрузки
+                //{
+                //    if (_currentRoleId.HasValue && cmbRole.ItemsSource != null)
+                //    {
+                //        cmbRole.SelectedValue = _currentRoleId.Value;
+                //        _logger.LogInformation("🎉 AUTO-INIT: cmbRole SUCCESSFULLY set to RoleId={RoleId}", _currentRoleId.Value);
+                //    }
+                //});
+                //await LoadTasksAsync();
                 UpdateWindowStyleAndRestrictions();
 
                 // Начать проверку соединения
                 _dbStatusTimer.Start();
                 await CheckDatabaseConnectionAsync(); // Первая проверка при загрузке
-
+                //await Dispatcher.InvokeAsync(() =>
+                //{
+                //    if (!_isAutoInitialized)
+                //    {
+                //        cmbRole.SelectedValue = _currentRoleId;
+                //    }
+                //    else
+                //    {
+                //        _logger.LogInformation("Auto-init: cmbRole NOT overridden, using RoleId={RoleId}", _currentRoleId);
+                //    }
+                //});
                 // Установка начального состояния кнопки btnOpenAdmin
                 if (_operatorService.CurrentOperator != null)
                 {
                     using (var db = _dbFactory.CreateDbContext())
                     {
                         var cardNumber = _operatorService.CurrentOperator.CardNumber;
-                        var skudRecord = await db.dic_SKUD
-                            .Where(s => s.IdCard == cardNumber)
-                            .Select(s => new { s.TORoleId })
-                            .FirstOrDefaultAsync()
-                            .ConfigureAwait(false);
+                        //var skudRecord = await db.dic_SKUD
+                        //    .Where(s => s.idCard == cardNumber)
+                        //    .Select(s => new { s.TORoleId })
+                        //    .FirstOrDefaultAsync()
+                        //    .ConfigureAwait(false);
 
-                        _currentRoleId = skudRecord?.TORoleId;
+                        //_currentRoleId = skudRecord?.TORoleId;
                         await Dispatcher.InvokeAsync(() =>
                         {
                             btnOpenAdmin.IsEnabled = _currentRoleId == 4; // Активна только для администратора
@@ -285,6 +327,7 @@ namespace InspectionWorkApp
                 _logger.LogInformation("Set WindowStyle to None for non-Admin (RoleId={RoleId})", _currentRoleId);
             }
         }
+
         protected override void OnClosing(CancelEventArgs e)
         {
             // Убираем хук при закрытии приложения
@@ -295,17 +338,39 @@ namespace InspectionWorkApp
         protected override void OnKeyDown(KeyEventArgs e)
         {
             base.OnKeyDown(e);
-            if (e.Key == Key.Escape && _currentRoleId != 4)
-            {
-                _logger.LogInformation("Escape key pressed, closing application.");
-                Close();
-            }
+            //if (e.Key == Key.Escape && _currentRoleId != 4)
+            //{
+            //    _logger.LogInformation("Escape key pressed, closing application.");
+            //    Close();
+            //}
             if (e.Key == Key.System && e.SystemKey == Key.F4 && _currentRoleId != 4)
             {
                 _logger.LogInformation("Alt+F4 blocked for non-admin role.");
                 e.Handled = true; // Блокируем Alt+F4
             }
+            if (e.Key == Key.F8)
+            {
+                if (_f8WaitingForConfirm)
+                {
+                    _logger.LogCritical("Подтверждено: F8 два раза → аварийный выход");
+                    Application.Current.Shutdown();
+                }
+                else
+                {
+                    _f8WaitingForConfirm = true;
+                    Dispatcher.InvokeAsync(async () =>
+                    {
+                        //txtOperatorStatus.Text = "Нажмите F8 ещё раз для выхода";
+                        txtOperatorStatus.Foreground = Brushes.Red;
+                        await Task.Delay(3000);
+                        _f8WaitingForConfirm = false;
+                        txtOperatorStatus.Text = "Вставьте пропуск";
+                        txtOperatorStatus.Foreground = Brushes.Gray;
+                    });
+                }
+            }
         }
+        
 
         #region Keyboard Hook and Taskbar Management
         // Windows API для хука клавиатуры
@@ -418,7 +483,7 @@ namespace InspectionWorkApp
                     {
                         var cardNumber = _operatorService.CurrentOperator.CardNumber;
                         var skudRecord = await db.dic_SKUD
-                            .Where(s => s.IdCard == cardNumber)
+                            .Where(s => s.idCard == cardNumber)
                             .Select(s => new { s.TORoleId })
                             .FirstOrDefaultAsync()
                             .ConfigureAwait(false);
@@ -435,18 +500,26 @@ namespace InspectionWorkApp
                             UpdateWindowStyleAndRestrictions();
                             if (skudRecord?.TORoleId != null)
                             {
-                                var roles = cmbRole.ItemsSource as List<Role>;
-                                var selectedRole = roles?.FirstOrDefault(r => r.Id == _currentRoleId.Value);
-                                if (selectedRole != null)
+                                if (_currentRoleId.HasValue)
                                 {
-                                    cmbRole.SelectedItem = selectedRole;
-                                    _logger.LogInformation("Set cmbRole to TORoleId: {TORoleId} for cardNumber: {cardNumber}",
-                                        _currentRoleId.Value, cardNumber);
-                                }
-                                else
-                                {
-                                    _logger.LogWarning("TORoleId {TORoleId} not found in TORoles for cardNumber: {cardNumber}",
-                                        skudRecord.TORoleId, cardNumber);
+                                    var roles = cmbRole.ItemsSource as List<Role>;
+                                    if (roles != null && roles.Any())
+                                    {
+                                        var selectedRole = roles.FirstOrDefault(r => r.Id == _currentRoleId.Value);
+                                        if (selectedRole != null)
+                                        {
+                                            cmbRole.SelectedItem = selectedRole;
+                                            if (_isAutoInitialized)
+                                            {
+                                                _logger.LogInformation("🎉 AUTO-INIT: cmbRole set to RoleId={RoleId} from startup", _currentRoleId.Value);
+                                            }
+                                            else
+                                            {
+                                                _logger.LogInformation("✓ MANUAL: cmbRole set to RoleId={RoleId} from dic_SKUD for cardNumber: {cardNumber}",
+                                                    _currentRoleId.Value, cardNumber);
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             else
@@ -462,7 +535,7 @@ namespace InspectionWorkApp
                     {
                         await Dispatcher.InvokeAsync(() =>
                         {
-                            txtOperatorStatus.Text = "Не авторизован";
+                            txtOperatorStatus.Text = "Вставьте пропуск";
                             txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Red;
                             btnOpenAdmin.IsEnabled = false;
                             btnOpenReports.IsEnabled = false;
@@ -532,7 +605,7 @@ namespace InspectionWorkApp
                             {
                                 var cardNumber = currentOperator.CardNumber;
                                 var skudRecord = await db.dic_SKUD
-                                    .Where(s => s.IdCard == cardNumber)
+                                    .Where(s => s.idCard == cardNumber)
                                     .Select(s => new { s.TORoleId })
                                     .FirstOrDefaultAsync();
 
@@ -560,6 +633,21 @@ namespace InspectionWorkApp
                                     IsAdminRole = false;
                                     _logger.LogWarning("No TORoleId found in dic_SKUD for cardNumber: {cardNumber}", cardNumber);
                                 }
+                                //if (_currentRoleId.HasValue && _isAutoInitialized)
+                                //{
+                                //    var rolesList = cmbRole.ItemsSource as List<Role>;
+                                //    if (rolesList != null && rolesList.Any())
+                                //    {
+                                //        var selectedRole = rolesList.FirstOrDefault(r => r.Id == _currentRoleId.Value);
+                                //        if (selectedRole != null)
+                                //        {
+                                //            cmbRole.SelectedItem = selectedRole;
+                                //            _logger.LogInformation("🎉 ROLE SET IN LoadCombosAsync: RoleId={RoleId}", _currentRoleId.Value);
+                                //            return; // ✅ Выход - роль установлена!
+                                //        }
+                                //    }
+                                //    _logger.LogWarning("Failed to set role in LoadCombosAsync: RoleId={RoleId}", _currentRoleId);
+                                //}
                             }
                             else
                             {
@@ -569,7 +657,20 @@ namespace InspectionWorkApp
                                 _logger.LogWarning("No current operator or no TORoleId for cardNumber: {cardNumber}", currentOperator?.CardNumber ?? "null");
                             }
                         });
-
+                        // ✅ ✅ ✅ КРИТИЧНО: УСТАНОВКА РОЛИ ПОСЛЕ ЗАГРУЗКИ ItemsSource
+                        Dispatcher.InvokeAsync(async () =>
+                        {
+                            if (_currentRoleId.HasValue && cmbRole.ItemsSource != null)
+                            {
+                                var rolesList = cmbRole.ItemsSource as List<Role>;
+                                var selectedRole = rolesList?.FirstOrDefault(r => r.Id == _currentRoleId.Value);
+                                if (selectedRole != null)
+                                {
+                                    cmbRole.SelectedItem = selectedRole;
+                                    _logger.LogInformation("🎉 LoadCombosAsync: cmbRole SET to RoleId={RoleId}", _currentRoleId.Value);
+                                }
+                            }
+                        });
                         // Обработчики событий для ручного выбора
                         cmbRole.SelectionChanged += (s, e) =>
                         {
@@ -1046,6 +1147,7 @@ namespace InspectionWorkApp
 
         private async void BtnOpenAdmin_Click(object sender, RoutedEventArgs e)
         {
+            this.Topmost = false;
             _logger.LogInformation("BtnOpenAdmin_Click started, ThreadId={ThreadId}", Thread.CurrentThread.ManagedThreadId);
             using (var db = _dbFactory.CreateDbContext())
             {
@@ -1076,6 +1178,7 @@ namespace InspectionWorkApp
         }
         private void BtnOpenReports_Click(object sender, RoutedEventArgs e)
         {
+            this.Topmost = false;
             if (_operatorService.CurrentOperator == null)
             {
                 MessageBox.Show("Авторизуйтесь, считав карту!");

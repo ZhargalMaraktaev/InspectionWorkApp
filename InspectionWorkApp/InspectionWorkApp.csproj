@@ -9,7 +9,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Controllers\1CController\**" />
+    <EmbeddedResource Remove="Controllers\1CController\**" />
+    <None Remove="Controllers\1CController\**" />
+    <Page Remove="Controllers\1CController\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="appsettings.json" />
+    <None Remove="Controllers\1C Controller\employee_data.xml" />
+    <None Remove="employee_data.xml" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +40,13 @@
     <EmbeddedResource Include="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedResource>
+    <EmbeddedResource Include="employee_data.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Controllers\1C Controller\" />
   </ItemGroup>
 
 </Project>

@@ -25,7 +25,7 @@
                 <ComboBoxItem Content="Дневная" Tag="Day"/>
                 <ComboBoxItem Content="Ночная" Tag="Night"/>
             </ComboBox>
-            <Button x:Name="btnFilter" Content="Фильтровать" Width="100" Click="BtnFilter_Click" Margin="0,0,10,0"/>
+            <Button x:Name="btnFilter" Content="Применить" Width="100" Click="BtnFilter_Click" Margin="0,0,10,0"/>
             <Button x:Name="btnReset" Content="Сбросить" Width="100" Click="BtnReset_Click"/>
         </StackPanel>
 

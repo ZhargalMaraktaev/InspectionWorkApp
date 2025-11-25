@@ -1,0 +1,11 @@
+﻿<x:Envelope
+    xmlns:x="http://schemas.xmlsoap.org/soap/envelope/"
+    xmlns:emp="emp_data">
+	<x:Header>
+	</x:Header>
+	<x:Body>
+		<emp:export_data>
+			<emp:cart>CardNumber</emp:cart>
+		</emp:export_data>
+	</x:Body>
+</x:Envelope>
