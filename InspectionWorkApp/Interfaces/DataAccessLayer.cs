@@ -146,13 +146,13 @@ namespace InspectionWorkApp.Services
                         parameters.Add(new SqlParameter("@Department", SqlDbType.NVarChar) { Value = newEmployee.Department ?? (object)DBNull.Value });
                     }
 
-                    if (existing.Position != newEmployee.Position || existing.TORoleId != newTORoleId)
+                    if (existing.Position != newEmployee.Position /*|| existing.TORoleId != newTORoleId*/)
                     {
                         needsUpdate = true;
-                        setClause.Append("EmployName = @EmployName, ");
+                        setClause.Append("EmployName = @EmployName");
                         parameters.Add(new SqlParameter("@EmployName", SqlDbType.NVarChar) { Value = newEmployee.Position ?? (object)DBNull.Value });
-                        setClause.Append("TORoleId = @TORoleId, ");
-                        parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
+                        //setClause.Append("TORoleId = @TORoleId, ");
+                        //parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
                     }
 
                     if (needsUpdate)
