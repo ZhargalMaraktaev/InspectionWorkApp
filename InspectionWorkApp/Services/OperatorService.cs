@@ -75,7 +75,7 @@ namespace InspectionWorkApp.Services
         {
             try
             {
-                //cardNumber = "163,17122";
+                //cardNumber = "186,00435";
                 _logger.LogInformation("AuthenticateOperatorAsync called: CardNumber={CardNumber}, IsAuth={IsAuth}, AuthTime={AuthTime}", cardNumber, isAuth, authTime);
                 Employee1CModel current = null;
                 if (isAuth)

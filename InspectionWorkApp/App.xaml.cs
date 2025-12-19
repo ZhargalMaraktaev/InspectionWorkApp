@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Quartz;
 using Quartz.Impl;
 using Quartz.Logging;
@@ -49,7 +50,9 @@ namespace InspectionWorkApp
         )
     )
 );
-
+            // После AddSingleton(configuration)
+            services.Configure<DatabaseSettings>(configuration.GetSection("DatabaseSettings"));
+            services.AddSingleton(provider => provider.GetRequiredService<IOptions<DatabaseSettings>>().Value);
             // Регистрация логирования
             services.AddLogging(builder =>
             {
@@ -130,9 +133,9 @@ namespace InspectionWorkApp
                 var logger = _serviceProvider.GetRequiredService<ILogger<App>>();
                 var configuration = _serviceProvider.GetRequiredService<IConfiguration>();
                 logger.LogInformation("Starting application...");
-
+                var dbSettings = _serviceProvider.GetRequiredService<DatabaseSettings>();
                 // **ЧИТАЕМ ПАРАМЕТРЫ ИЗ БД**
-                (int? roleId, string cardNumber, Guid? sessionId) = await ReadStartupParametersFromDB(logger, configuration);
+                (int? roleId, string cardNumber, Guid? sessionId) = await ReadStartupParametersFromDB(logger, configuration, dbSettings);
 
                 // Инициализация начальных данных
                 var initializer = _serviceProvider.GetRequiredService<DataInitializer>();
@@ -182,7 +185,7 @@ namespace InspectionWorkApp
                 throw;
             }
         }
-        private static async Task<(int? RoleId, string CardNumber, Guid? SessionId)> ReadStartupParametersFromDB(ILogger logger, IConfiguration configuration)
+        private static async Task<(int? RoleId, string CardNumber, Guid? SessionId)> ReadStartupParametersFromDB(ILogger logger, IConfiguration configuration, DatabaseSettings dbSettings)
         {
             int? roleId = null;
             string cardNumber = null;
@@ -194,24 +197,25 @@ namespace InspectionWorkApp
                 logger.LogError("Connection string 'DefaultConnection' not found in appsettings.json");
                 return (null, null, null);
             }
-
+            // ← Формируем имя таблицы динамически
+            string exchangeTable = $"{dbSettings.TargetDatabase}.dbo.InspectionWorkAppExchange";
             try
             {
                 using var connection = new SqlConnection(connectionString);
                 await connection.OpenAsync();
 
                 // 1. ОЧИСТКА старых записей
-                using var cleanupCmd = new SqlCommand(@"
-            DELETE FROM Pilot.dbo.InspectionWorkAppExchange 
+                using var cleanupCmd = new SqlCommand($@"
+            DELETE FROM {exchangeTable} 
             WHERE CreatedAt < DATEADD(HOUR, -1, GETDATE())", connection);
                 int cleaned = await cleanupCmd.ExecuteNonQueryAsync();
                 if (cleaned > 0)
                     logger.LogInformation("Cleaned {Count} old exchange records", cleaned);
 
                 // 2. ЧИТАЕМ параметры
-                using var selectCmd = new SqlCommand(@"
+                using var selectCmd = new SqlCommand($@"
             SELECT TOP 1 RoleId, CardNumber, LaunchSession 
-            FROM Pilot.dbo.InspectionWorkAppExchange 
+            FROM {exchangeTable} 
             WHERE Processed = 0 
             ORDER BY CreatedAt DESC", connection);
 
@@ -232,8 +236,8 @@ namespace InspectionWorkApp
                 }
 
                 // 3. UPDATE на том же соединении (теперь безопасно!)
-                using var updateCmd = new SqlCommand(@"
-            UPDATE Pilot.dbo.InspectionWorkAppExchange 
+                using var updateCmd = new SqlCommand($@"
+            UPDATE {exchangeTable}
             SET Processed = 1, ProcessedAt = GETDATE() 
             WHERE LaunchSession = @sessionId", connection);
                 updateCmd.Parameters.AddWithValue("@sessionId", sessionId.Value);

@@ -2,9 +2,11 @@
 using InspectionWorkApp.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Data;
 using System.Data.SqlClient;
+using System.Runtime;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -14,13 +16,18 @@ namespace InspectionWorkApp.Services
     {
         private readonly string _connectionString;
         private readonly ILogger<DataAccessLayer> _logger;
+        private readonly string _targetDatabase; // Например: "Pilot", "Production", "TestDB" и т.д.
 
-        public DataAccessLayer(IConfiguration configuration, ILogger<DataAccessLayer> logger)
+        public DataAccessLayer(IConfiguration configuration, IOptions<DatabaseSettings> dbSettings, ILogger<DataAccessLayer> logger)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection")
                 ?? throw new ArgumentNullException(nameof(configuration), "Connection string not found.");
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _targetDatabase = dbSettings.Value.TargetDatabase ?? "Pilot";
         }
+
+        // Вспомогательный метод для формирования полного имени таблицы
+        private string Table(string tableName) => $"{_targetDatabase}.dbo.{tableName}";
         private async Task<Employee1CModel> GetEmployeeByPersonnelNumberAsync(string personnelNumber)
         {
             try
@@ -28,7 +35,8 @@ namespace InspectionWorkApp.Services
                 Employee1CModel employee = null;
                 using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-                using var cmd = new SqlCommand("SELECT TOP 1 idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM Pilot.dbo.dic_SKUD WHERE TabNumber = @TabNumber", conn);
+                using var cmd = new SqlCommand(
+                    $"SELECT TOP 1 idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM {Table("dic_SKUD")} WHERE TabNumber = @TabNumber", conn);
                 cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = personnelNumber;
 
                 using var reader = await cmd.ExecuteReaderAsync();
@@ -48,7 +56,14 @@ namespace InspectionWorkApp.Services
                         ErrorCode = (int)Employee1CModel.ErrorCodes.ReadingSuccessful
                     };
                 }
-
+                //if (employee != null && !employee.TORoleId.HasValue)
+                //{
+                //    employee.TORoleId = DetermineRoleFromEmployName(employee.Position);
+                //    if (employee.TORoleId.HasValue)
+                //    {
+                //        await UpdateTORoleIdAsync(conn, personnelNumber, employee.TORoleId.Value);
+                //    }
+                //}
                 if (employee == null)
                 {
                     _logger.LogInformation("Employee not found for personnelNumber: {PersonnelNumber}", personnelNumber);
@@ -101,8 +116,8 @@ namespace InspectionWorkApp.Services
                 if (existing == null)
                 {
                     // Insert new
-                    using var cmd = new SqlCommand(@"
-                        INSERT INTO Pilot.dbo.dic_SKUD (idCard, TabNumber, FIO, Department, EmployName, TORoleId)
+                    using var cmd = new SqlCommand(@$"
+                        INSERT INTO {Table("dic_SKUD")} (idCard, TabNumber, FIO, Department, EmployName, TORoleId)
                         VALUES (@IdCard, @TabNumber, @FIO, @Department, @EmployName, @TORoleId)", conn);
                     cmd.Parameters.Add("@IdCard", SqlDbType.NVarChar).Value = newEmployee.CardNumber ?? (object)DBNull.Value;
                     cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = newEmployee.PersonnelNumber ?? (object)DBNull.Value;
@@ -154,12 +169,18 @@ namespace InspectionWorkApp.Services
                         //setClause.Append("TORoleId = @TORoleId, ");
                         //parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
                     }
+                    if (existing.TORoleId==null)
+                        {
+                        needsUpdate = true;
+                        setClause.Append("TORoleId = @TORoleId, ");
+                        parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
+                    }
 
                     if (needsUpdate)
                     {
                         string setString = setClause.ToString().TrimEnd(' ', ',');
                         using var cmd = new SqlCommand($@"
-                            UPDATE Pilot.dbo.dic_SKUD
+                            UPDATE {Table("dic_SKUD")}
                             SET {setString}
                             WHERE TabNumber = @TabNumber", conn);
                         cmd.Parameters.Add(new SqlParameter("@TabNumber", SqlDbType.NVarChar) { Value = newEmployee.PersonnelNumber ?? (object)DBNull.Value });
@@ -209,7 +230,7 @@ namespace InspectionWorkApp.Services
                 Employee1CModel employee = null;
                 using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-                using var cmd = new SqlCommand("SELECT TOP 1 idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM Pilot.dbo.dic_SKUD WHERE idCard = @IdCard order by id asc", conn);
+                using var cmd = new SqlCommand($"SELECT TOP 1 idCard, TabNumber, FIO, Department, EmployName, TORoleId FROM {Table("dic_SKUD")} WHERE idCard = @IdCard order by id asc", conn);
                 cmd.Parameters.Add("@IdCard", SqlDbType.NVarChar).Value = cardNumber;
 
                 using var reader = await cmd.ExecuteReaderAsync();
@@ -292,8 +313,8 @@ namespace InspectionWorkApp.Services
                 // Определяем TORoleId на основе EmployName
                 int? toRoleId = DetermineRoleFromEmployName(employee.Position);
 
-                using var cmd = new SqlCommand(@"
-                    INSERT INTO Pilot.dbo.dic_SKUD (idCard, TabNumber, FIO, Department, EmployName, TORoleId)
+                using var cmd = new SqlCommand(@$"
+                    INSERT INTO {Table("dic_SKUD")} (idCard, TabNumber, FIO, Department, EmployName, TORoleId)
                     VALUES (@IdCard, @TabNumber, @FIO, @Department, @Position, @TORoleId)", conn);
                 cmd.Parameters.Add("@IdCard", SqlDbType.NVarChar).Value = employee.CardNumber ?? (object)DBNull.Value;
                 cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = employee.PersonnelNumber ?? (object)DBNull.Value;
@@ -323,7 +344,7 @@ namespace InspectionWorkApp.Services
             {
                 using var conn = new SqlConnection(_connectionString);
                 await conn.OpenAsync();
-                using var cmd = new SqlCommand("SELECT id FROM Pilot.dbo.dic_SKUD WHERE TabNumber = @TabNumber", conn);
+                using var cmd = new SqlCommand($"SELECT id FROM {Table("dic_SKUD")} WHERE TabNumber = @TabNumber", conn);
                 cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = personnelNumber ?? (object)DBNull.Value;
 
                 var result = await cmd.ExecuteScalarAsync();
@@ -352,7 +373,7 @@ namespace InspectionWorkApp.Services
         {
             try
             {
-                using var cmd = new SqlCommand("SELECT COUNT(*) FROM Pilot.dbo.dic_SKUD WHERE TabNumber = @TabNumber", conn);
+                using var cmd = new SqlCommand($"SELECT COUNT(*) FROM {Table("dic_SKUD")} WHERE TabNumber = @TabNumber", conn);
                 cmd.Parameters.Add("@TabNumber", SqlDbType.NVarChar).Value = personnelNumber ?? (object)DBNull.Value;
                 var count = (int)await cmd.ExecuteScalarAsync();
                 return count > 0;
@@ -394,19 +415,19 @@ namespace InspectionWorkApp.Services
             return null;
         }
 
-        private async Task UpdateTORoleIdAsync(SqlConnection conn, string cardNumber, int toRoleId)
+        private async Task UpdateTORoleIdAsync(SqlConnection conn, string personnelNumber, int toRoleId)
         {
             try
             {
-                using var cmd = new SqlCommand("UPDATE Pilot.dbo.dic_SKUD SET TORoleId = @TORoleId WHERE idCard = @IdCard", conn);
+                using var cmd = new SqlCommand($"UPDATE {Table("dic_SKUD")} SET TORoleId = @TORoleId WHERE TabNumber = @PersonnelNumber", conn);
                 cmd.Parameters.Add("@TORoleId", SqlDbType.Int).Value = toRoleId;
-                cmd.Parameters.Add("@IdCard", SqlDbType.NVarChar).Value = cardNumber;
+                cmd.Parameters.Add("@PersonnelNumber", SqlDbType.NVarChar).Value = personnelNumber;
                 await cmd.ExecuteNonQueryAsync();
-                _logger.LogInformation("Updated TORoleId={TORoleId} for cardNumber: {CardNumber}", toRoleId, cardNumber);
+                _logger.LogInformation("Updated TORoleId={TORoleId} for cardNumber: {CardNumber}", toRoleId, personnelNumber);
             }
             catch (SqlException ex)
             {
-                _logger.LogError(ex, "Database error in UpdateTORoleIdAsync for cardNumber: {CardNumber}", cardNumber);
+                _logger.LogError(ex, "Database error in UpdateTORoleIdAsync for cardNumber: {CardNumber}", personnelNumber);
                 throw;
             }
         }
