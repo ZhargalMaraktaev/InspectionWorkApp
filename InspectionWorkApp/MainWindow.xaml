@@ -133,5 +133,11 @@
             <Button x:Name="btnOpenAdmin" Content="Открыть админ-панель" Width="200" Click="BtnOpenAdmin_Click" IsEnabled="False" Margin="0,0,0,0" HorizontalAlignment="Left"/>
             <Button x:Name="btnOpenReports" Content="Просмотр обработанных работ" Width="250" Click="BtnOpenReports_Click" IsEnabled="False" Margin="10,0,0,0"/>
         </StackPanel>
+        <TextBox x:Name="InsertCard" 
+                 Grid.Row="2" TextWrapping="Wrap" Text="ВСТАВЬТЕ ПРОПУСК!" 
+                 VerticalAlignment="Stretch" HorizontalAlignment="Stretch"
+                 TextAlignment="Center" VerticalContentAlignment="Center"  IsReadOnly="True"
+                 FontSize="80" Foreground="Red" Background="Transparent" Visibility="Visible"
+                 BorderThickness="0"/>
     </Grid>
 </Window>

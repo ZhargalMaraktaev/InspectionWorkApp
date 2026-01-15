@@ -135,50 +135,43 @@ namespace InspectionWorkApp.Services
                 }
                 else
                 {
-                    // Compare and update if needed
-                    bool needsUpdate = false;
-                    StringBuilder setClause = new StringBuilder();
+                    var updates = new List<string>();
                     var parameters = new List<SqlParameter>();
 
                     if (existing.CardNumber != newEmployee.CardNumber)
                     {
-                        needsUpdate = true;
-                        setClause.Append("idCard = @IdCard, ");
+                        updates.Add("idCard = @IdCard");
                         parameters.Add(new SqlParameter("@IdCard", SqlDbType.NVarChar) { Value = newEmployee.CardNumber ?? (object)DBNull.Value });
                     }
 
                     if (existing.FullName != newEmployee.FullName)
                     {
-                        needsUpdate = true;
-                        setClause.Append("FIO = @FIO, ");
+                        updates.Add("FIO = @FIO");
                         parameters.Add(new SqlParameter("@FIO", SqlDbType.NVarChar) { Value = newEmployee.FullName ?? (object)DBNull.Value });
                     }
 
                     if (existing.Department != newEmployee.Department)
                     {
-                        needsUpdate = true;
-                        setClause.Append("Department = @Department, ");
+                        updates.Add("Department = @Department");
                         parameters.Add(new SqlParameter("@Department", SqlDbType.NVarChar) { Value = newEmployee.Department ?? (object)DBNull.Value });
                     }
 
                     if (existing.Position != newEmployee.Position /*|| existing.TORoleId != newTORoleId*/)
                     {
-                        needsUpdate = true;
-                        setClause.Append("EmployName = @EmployName");
+                        updates.Add("EmployName = @EmployName");
                         parameters.Add(new SqlParameter("@EmployName", SqlDbType.NVarChar) { Value = newEmployee.Position ?? (object)DBNull.Value });
                         //setClause.Append("TORoleId = @TORoleId, ");
                         //parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
                     }
                     if (existing.TORoleId==null)
-                        {
-                        needsUpdate = true;
-                        setClause.Append("TORoleId = @TORoleId, ");
+                    {
+                        updates.Add("TORoleId = @TORoleId");
                         parameters.Add(new SqlParameter("@TORoleId", SqlDbType.Int) { Value = newTORoleId ?? (object)DBNull.Value });
                     }
 
-                    if (needsUpdate)
+                    if (updates.Any())
                     {
-                        string setString = setClause.ToString().TrimEnd(' ', ',');
+                        string setString = string.Join(", ", updates);
                         using var cmd = new SqlCommand($@"
                             UPDATE {Table("dic_SKUD")}
                             SET {setString}

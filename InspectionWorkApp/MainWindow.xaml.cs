@@ -60,6 +60,7 @@ namespace InspectionWorkApp
         private List<int> _availableSectorIds = new List<int>();
         private bool _isProgrammaticChange = false;
         private List<Sector> _allAvailableSectors = new List<Sector>(); // ← ВСЕ сектора из БД
+        private readonly ILogger _dbMonitorLogger;
 
         public event PropertyChangedEventHandler PropertyChanged;
         public int? CurrentRoleId
@@ -114,11 +115,11 @@ namespace InspectionWorkApp
             _comController.StateChanged += ComController_StateChanged;
             _loggerFactory = loggerFactory;
             _logger = loggerFactory.CreateLogger<MainWindow>();
-
+            _dbMonitorLogger = loggerFactory.CreateLogger("DbConnectionMonitor");
             // Инициализация таймера
             _dbStatusTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromSeconds(1) // Проверка каждые 10 секунд
+                Interval = TimeSpan.FromSeconds(1)
             };
             _dbStatusTimer.Tick += async (s, e) => await CheckDatabaseConnectionAsync();
             txtDatabaseStatus.Text = "Проверяется...";
@@ -252,14 +253,14 @@ namespace InspectionWorkApp
                         _isDatabaseConnected = true;
                         txtDatabaseStatus.Text = "Подключено";
                         txtDatabaseStatus.Foreground = Brushes.Green;
-                        _logger.LogInformation("Database connection restored.");
+                        _dbMonitorLogger.LogInformation("Database connection RESTORED");
                     }
                     else if (!isConnected && _isDatabaseConnected)
                     {
                         _isDatabaseConnected = false;
                         txtDatabaseStatus.Text = "Разорвано";
                         txtDatabaseStatus.Foreground = Brushes.Red;
-                        _logger.LogWarning("Database connection lost.");
+                        _dbMonitorLogger.LogWarning("Database connection LOST");
                     }
                     else if (!isConnected)
                     {
@@ -278,7 +279,7 @@ namespace InspectionWorkApp
                 _isDatabaseConnected = false;
                 txtDatabaseStatus.Text = "Разорвано";
                 txtDatabaseStatus.Foreground = Brushes.Red;
-                _logger.LogError(ex, "Error checking database connection.");
+                _dbMonitorLogger.LogError(ex, "Cannot check database connection");
             }
         }
 
@@ -598,6 +599,7 @@ namespace InspectionWorkApp
                             btnOpenAdmin.IsEnabled = CurrentRoleId == 4; // Активна только для администратора
                             btnOpenReports.IsEnabled = CurrentRoleId == 4; // Активна для администратора
                             IsAdminRole = CurrentRoleId == 4;
+                            InsertCard.Visibility = Visibility.Collapsed;
                             UpdateWindowStyleAndRestrictions();
                             Dispatcher.Invoke(() => ApplySectorFilterToComboBox());
                             if (skudRecord?.TORoleId != null)
@@ -639,6 +641,7 @@ namespace InspectionWorkApp
                         {
                             txtOperatorStatus.Text = "Вставьте пропуск";
                             txtOperatorStatus.Foreground = System.Windows.Media.Brushes.Red;
+                            InsertCard.Visibility = Visibility.Visible;
                             btnOpenAdmin.IsEnabled = false;
                             btnOpenReports.IsEnabled = false;
                             CurrentRoleId = null;

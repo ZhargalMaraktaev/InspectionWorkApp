@@ -8,9 +8,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Serilog.Extensions.Logging.File;
 using Quartz;
 using Quartz.Impl;
-using Quartz.Logging;
+using QuartzLog = Quartz.Logging;
 using Quartz.Spi;
 using System;
 using System.Data.SqlClient;
@@ -29,12 +30,30 @@ namespace InspectionWorkApp
         public App()
         {
             var services = new ServiceCollection();
+            // Получаем путь к AppData\Roaming\InspectionWorkApp (независимо от версии)
+            string appDataPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "InspectionWorkApp"  // Имя вашей подпапки — можно изменить
+            );
 
+            // Создаём подпапку, если её нет (один раз)
+            if (!Directory.Exists(appDataPath))
+            {
+                Directory.CreateDirectory(appDataPath);
+            }
+
+            string localConfigPath = Path.Combine(appDataPath, "localsettings.json");
             // Настройка конфигурации
             IConfiguration configuration = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+                .AddJsonFile(localConfigPath, optional: true, reloadOnChange: true)  // ← localsettings.json из AppData
                 .Build();
+
+            // Логируем для отладки
+            var tempLogger = new LoggerFactory().CreateLogger<App>();  // Временный logger
+            tempLogger?.LogInformation("Config loaded: AppData path={AppDataPath}", appDataPath);
+            tempLogger?.LogInformation("Local config exists: {Exists}", File.Exists(localConfigPath));
 
             // Регистрация строки подключения
             services.AddSingleton(configuration);
@@ -57,8 +76,20 @@ namespace InspectionWorkApp
             services.AddLogging(builder =>
             {
                 builder.AddConfiguration(configuration.GetSection("Logging"));
+
                 builder.AddConsole();
                 builder.AddDebug();
+
+                // ────────────────────────────────────────────────────────────────
+                // Самый простой и рабочий вариант для версии 3.0.0+
+                builder.AddFile(
+                    pathFormat: "logs/db-connection-{Date}.log",   // {Date} → ежедневная ротация
+                    minimumLevel: LogLevel.Information,
+                    fileSizeLimitBytes: 10 * 1024 * 1024,          // 10 МБ
+                    retainedFileCountLimit: 31,                    // храним 31 день
+                    outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
+                );
+                // ────────────────────────────────────────────────────────────────
             });
             // В конструкторе App
             services.AddSingleton(provider =>
@@ -130,6 +161,32 @@ namespace InspectionWorkApp
 
             try
             {
+                string appDataPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "InspectionWorkApp"
+        );
+                string localPath = Path.Combine(appDataPath, "localsettings.json");
+
+                if (!File.Exists(localPath))
+                {
+                    // Создаём шаблон
+                    var template = @"{
+""ConnectionStrings"": {
+""DefaultConnection"": ""<ВСТАВЬТЕ СТРОКУ ПОДКЛЮЧЕНИЯ>""
+    },
+""DatabaseSettings"": {
+""TargetDatabase"": ""<ИМЯ БД>""
+    }
+}";
+                    File.WriteAllText(localPath, template);
+
+                    var loggerr = _serviceProvider.GetRequiredService<ILogger<App>>();
+                    loggerr.LogWarning("Создан шаблон localsettings.json в {Path}. Отредактируйте его и перезапустите приложение.", localPath);
+
+                    MessageBox.Show($"Создан шаблон конфигурации в:\n{localPath}\n\nОтредактируйте localsettings.json и перезапустите приложение.");
+                    Shutdown();
+                    return;
+                }
                 var logger = _serviceProvider.GetRequiredService<ILogger<App>>();
                 var configuration = _serviceProvider.GetRequiredService<IConfiguration>();
                 logger.LogInformation("Starting application...");
